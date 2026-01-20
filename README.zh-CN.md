@@ -1,9 +1,13 @@
-# AACR-Bench: 多语言、仓库级上下文感知的自动化代码评审评测数据集
+[//]: # (# AACR-Bench: 多语言、仓库级上下文感知的自动化代码评审评测数据集)
+![AACR-Bench Overview](imgs/bg.png)
+
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://img.shields.io/badge/License-Apache_2.0-blue.svg)<!-- 这是一张图片，ocr 内容为： -->
 ![](https://img.shields.io/badge/Dataset-v1.0-green.svg)<!-- 这是一张图片，ocr 内容为： -->
 ![](https://img.shields.io/badge/Languages-10-orange.svg)<!-- 这是一张图片，ocr 内容为： -->
 ![](https://img.shields.io/badge/PRs-200-red.svg)<!-- 这是一张图片，ocr 内容为： -->
+
+[English](README.md) | 简体中文
 
 ## 📋 简介
 AACR-Bench 是一个**多语言、仓库级上下文感知的代码评审评测数据集**，可用于评估大语言模型在自动代码评审任务中的表现。数据集包含来自50个活跃开源项目的200个真实Pull Request，覆盖10种主流编程语言，每个实例不仅包含代码变更，还保留了完整的仓库上下文，真实还原了代码评审的全过程。通过人类与LLM协同评审 + 人类专家多轮标注，确保了数据的高质量和全面性。
@@ -58,7 +62,7 @@ AACR-Bench 是一个**多语言、仓库级上下文感知的代码评审评测�
 | Pull Requests | 200 |
 | 编程语言 | 10 |
 | 源项目 | 50 |
-| 总评审意见 | 1505 |
+| 总评审意见 | 2145 |
 
 
 ### 数据格式
@@ -153,7 +157,7 @@ AACR-Bench 是一个**多语言、仓库级上下文感知的代码评审评测�
 
 
 
-## 🗺️ 路线图（如果后续还会更新可以把发布计划写在这里）
+## 🗺️ 路线图
 - [x] v1.0 (2026.01): 初始发布 - 200个PR，10种语言
 - [ ] 
 

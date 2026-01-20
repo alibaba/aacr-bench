@@ -1,9 +1,13 @@
-# AACR-Bench: A Multi-lingual Repository-level Context-aware Automated Code Review Benchmark
+[//]: # (# AACR-Bench: A Multi-lingual Repository-level Context-aware Automated Code Review Benchmark)
+![AACR-Bench Overview](imgs/bg.png)
+
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://img.shields.io/badge/License-Apache_2.0-blue.svg)<!-- 这是一张图片，ocr 内容为： -->
 ![](https://img.shields.io/badge/Dataset-v1.0-green.svg)<!-- 这是一张图片，ocr 内容为： -->
 ![](https://img.shields.io/badge/Languages-10-orange.svg)<!-- 这是一张图片，ocr 内容为： -->
 ![](https://img.shields.io/badge/PRs-200-red.svg)<!-- 这是一张图片，ocr 内容为： -->
+
+English | [简体中文](README.zh-CN.md)
 
 ## 📋 Introduction
 AACR-Bench is a multi-lingual, repository-level context-aware code review benchmark dataset designed to evaluate the performance of Large Language Models (LLMs) in automated code review tasks. The dataset contains 200 real Pull Requests from 50 active open-source projects, covering 10 mainstream programming languages. Each instance not only includes code changes but also preserves comprehensive repository context, faithfully reproducing the entire code review process. Through human-LLM collaborative review and multi-round expert annotation, we ensure high-quality and comprehensive data.
@@ -56,7 +60,7 @@ Covers 10 mainstream programming languages: Python, Java, JavaScript, TypeScript
 | Pull Requests | 200 |
 | Programming Languages | 10 |
 | Source Projects | 50 |
-| Total Review Comments | 1,505 |
+| Total Review Comments | 2145 |
 
 
 ### Data Format
