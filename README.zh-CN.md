@@ -129,14 +129,15 @@ AACR-Bench 是一个**多语言、仓库级上下文感知的代码评审评测�
 详细贡献指南请参考 [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## 👥 作者与维护者
-| 姓名 | GitHub | 负责领域 | 主要职责 |
-| :--- | :--- | :--- | :--- |
-| **李峥峰** | [@lizhengfeng](https://github.com/lizhengfeng101) | 项目负责人 | 总体架构设计、技术方向把控 |
-| **张耒** | [@zhanglei](https://github.com/TongWu-ZL) | 数据架构 | 评测框架架构、指标体系设计、性能优化 |
-| **于永达** | [@yuyongda](https://github.com/inkeast) | 评测系统 | 数据模式设计、评测协议制定、质量控制标准 |
-| **郭欣欣** | [@guoxinxin](https://github.com/guoxinxin125) | 标注平台 | 标注系统开发、工作流设计、质量保证机制 |
-| **余明晖** | [@yuminghui](https://github.com/yuminghui) | AI增强 | LLM标注流程、模型选择、提示工程优化 |
-| **庄正奇** | [@zhuangzhengqi](https://github.com/ZhengqiZhuang) | 工程化 | CI/CD流程、自动化测试、部署脚本 |
+| 姓名 | GitHub                                             | 负责领域  | 主要职责                 |
+| :--- |:---------------------------------------------------|:------|:---------------------|
+| **李峥峰** | [@lizhengfeng](https://github.com/lizhengfeng101)  | 项目负责人 | 总体架构设计、技术方向把控        |
+| **王博格** | [@wangboge](https://github.com/wbgbg)          | 技术顾问  | 技术方案评审、技术指导          |
+| **张耒** | [@zhanglei](https://github.com/TongWu-ZL)          | 数据架构  | 评测框架架构、指标体系设计、性能优化   |
+| **于永达** | [@yuyongda](https://github.com/inkeast)            | 评测系统  | 数据模式设计、评测协议制定、质量控制标准 |
+| **郭欣欣** | [@guoxinxin](https://github.com/guoxinxin125)      | 标注平台  | 标注系统开发、工作流设计、质量保证机制  |
+| **余明晖** | [@yuminghui](https://github.com/yuminghui)         | AI增强  | LLM标注流程、模型选择、提示工程优化  |
+| **庄正奇** | [@zhuangzhengqi](https://github.com/ZhengqiZhuang) | 工程化   | CI/CD流程、自动化测试、部署脚本   |
 
 
 ## 📄 许可
@@ -159,7 +160,6 @@ AACR-Bench 是一个**多语言、仓库级上下文感知的代码评审评测�
 
 ## 🗺️ 路线图
 - [x] v1.0 (2026.01): 初始发布 - 200个PR，10种语言
-- [ ] 
 
 ## <font style="color:rgb(31, 35, 40);">🌟</font><font style="color:rgb(31, 35, 40);"> </font>致谢
 + 感谢所有参与数据标注的贡献者，特别是完成15条以上有效标注的核心贡献者，完整名单见 [docs/ANNOTATORS.md](docs/ANNOTATORS.md)。

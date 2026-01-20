@@ -127,14 +127,15 @@ We welcome community contributions! To contribute to AACR-Bench, please follow t
 For detailed contributing guidelines, please refer to [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## 👥 Authors and Maintainers
-| Name | GitHub                                            | Area | Responsibilities |
-| --- |---------------------------------------------------| --- | --- |
-| Zhengfeng Li | [@lizhengfeng](https://github.com/lizhengfeng101) | Project Lead | Overall architecture design, technical direction |
-| Lei Zhang | [@zhanglei](https://github.com/TongWu-ZL) | Data Architecture | Evaluation framework, metric system, performance optimization |
-| Yongda Yu | [@yuyongda](https://github.com/inkeast) | Evaluation System | Data schema design, evaluation protocol, quality standards |
-| Xinxin Guo | [@guoxinxin](https://github.com/guoxinxin125) | Annotation Platform | Annotation system development, workflow design, quality assurance |
-| Minghui Yu | [@yuminghui](https://github.com/yuminghui) | AI Enhancement | LLM annotation pipeline, model selection, prompt optimization |
-| Zhengqi Zhuang | [@zhuangzhengqi](https://github.com/ZhengqiZhuang) | Engineering | CI/CD pipeline, automated testing, deployment scripts |
+| Name           | GitHub                                            | Area | Responsibilities                                                  |
+|----------------|---------------------------------------------------| --- |-------------------------------------------------------------------|
+| Zhengfeng Li   | [@lizhengfeng](https://github.com/lizhengfeng101) | Project Lead | Overall architecture design, technical direction                  |
+| Boge Wang      | [@wangboge](https://github.com/wbgbg) | Technical Consultant | Technical Solution Review, technical Guidance         |
+| Lei Zhang      | [@zhanglei](https://github.com/TongWu-ZL) | Data Architecture | Evaluation framework, metric system, performance optimization     |
+| Yongda Yu      | [@yuyongda](https://github.com/inkeast) | Evaluation System | Data schema design, evaluation protocol, quality standards        |
+| Xinxin Guo     | [@guoxinxin](https://github.com/guoxinxin125) | Annotation Platform | Annotation system development, workflow design, quality assurance |
+| Minghui Yu     | [@yuminghui](https://github.com/yuminghui) | AI Enhancement | LLM annotation pipeline, model selection, prompt optimization     |
+| Zhengqi Zhuang | [@zhuangzhengqi](https://github.com/ZhengqiZhuang) | Engineering | CI/CD pipeline, automated testing, deployment scripts             |
 
 
 ## 📄 License
@@ -155,7 +156,6 @@ If you use AACR-Bench in your research, please cite our paper:
 
 ## 🗺️ Roadmap
 - [x] v1.0 (2026.01): Initial release - 200 PRs, 10 languages
-- [ ] 
 
 ## <font style="color:rgb(31, 35, 40);">🌟</font><font style="color:rgb(31, 35, 40);"> </font>Acknowledgments
 + Thanks to all contributors who participated in data annotation, especially core contributors who completed 15+ valid annotations. See the full list at [docs/ANNOTATORS.md](docs/ANNOTATORS.md).
