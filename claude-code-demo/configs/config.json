@@ -1,0 +1,4 @@
+{
+  "cli_path": "/path/to/claude",
+  "data_path": "/path/to/dataset/{positive_or_negative}_samples.json"
+}
