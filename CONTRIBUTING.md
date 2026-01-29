@@ -1,48 +1,51 @@
-# 贡献指南 - CONTRIBUTING.md
-感谢您对 AACR-Bench 的关注！我们欢迎各种形式的贡献，包括但不限于：
+# Contributing to AACR-Bench
 
-+ 🐛 报告问题和建议
-+ 📝 改进文档
-+ 🔧 提交代码修复
-+ ✨ 添加新功能
-+ 🌐 贡献新的评测数据
-+ 🧪 改进测试覆盖率
+Thank you for your interest in AACR-Bench! We welcome contributions of all kinds, including but not limited to:
 
-## 代码贡献指南
-### 报告问题
-1. 在 Issues 中搜索是否已有相关问题
-2. 使用对应的 issue 模板创建新 issue
-3. 提供尽可能详细的信息：
-    - 环境信息（操作系统、Python版本等）
-    - 复现步骤
-    - 预期行为与实际行为
-    - 相关日志或截图
+- 🐛 Reporting issues and suggestions
+- 📝 Improving documentation
+- 🔧 Submitting code fixes
+- ✨ Adding new features
+- 🌐 Contributing new evaluation data
+- 🧪 Improving test coverage
 
-### 提出新功能
-1. 先在 Discussions 中讨论您的想法
-2. 获得社区反馈后，创建功能需求 issue
-3. 如果您愿意实现该功能，请说明并等待维护者确认
+## Code Contribution Guidelines
 
-## 数据贡献指南
-如果您想贡献新的 PR 数据，请确保：
+### Reporting Issues
+1. Search existing issues to check if the problem has already been reported
+2. Create a new issue using the appropriate issue template
+3. Provide as much detail as possible:
+    - Environment information (OS, Python version, etc.)
+    - Steps to reproduce
+    - Expected behavior vs actual behavior
+    - Relevant logs or screenshots
 
-1. 数据质量
-    - PR 来自活跃的开源项目
-    - 包含有意义的代码更改
-    - 有高质量的人工评审
-2. 数据格式
-    - 符合规定的 JSON schema
-    - 包含完整的元数据
-    - 经过脱敏处理
-3. 标注要求
-    - 至少 2 位专家审核
-    - 覆盖多种问题类型
+### Proposing New Features
+1. Start by discussing your idea in Discussions
+2. After receiving community feedback, create a feature request issue
+3. If you're willing to implement the feature, please indicate so and wait for maintainer confirmation
 
-### 提交数据
-1. 将数据放在 `data/contributions/` 目录
-2. 创建 PR 并说明数据来源
+## Data Contribution Guidelines
 
-## 致谢
-感谢所有贡献者的付出！您的贡献让 AACR-Bench 变得更好。
+If you'd like to contribute new PR data, please ensure:
+
+1. **Data Quality**
+    - PRs are from active open-source projects
+    - Contains meaningful code changes
+    - Has high-quality human reviews
+2. **Data Format**
+    - Conforms to the specified JSON schema
+    - Includes complete metadata
+    - Has been properly anonymized
+3. **Annotation Requirements**
+    - Reviewed by at least 2 experts
+    - Covers various issue types
+
+### Submitting Data
+1. Place data in the `data/contributions/` directory
+2. Create a PR and explain the data source
+
+## Acknowledgments
+Thank you to all contributors for their dedication! Your contributions make AACR-Bench better.
 
 Happy Contributing! 🎉
