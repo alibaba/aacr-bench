@@ -17,9 +17,9 @@ This example is for reference only and shows how to use our dataset. Please repl
 
 ```
 claude-code-demo/
-├── main.py                 # Main program entry point
+├── main.py                  # Main program entry point
 ├── configs/
-│   └── config.json        # Configuration file (Claude CLI path, dataset path)
+│   └── config.json          # Configuration file (Claude CLI path, dataset path)
 ├── utils/
 │   ├── claude_code_util.py  # Claude Code utility functions
 │   ├── git_util.py          # Git operation utilities
@@ -29,8 +29,9 @@ claude-code-demo/
 ├── .claude/
 │   └── agents/
 │       └── code-reviewer.md # Code review Agent configuration
-├── comments/               # Review result storage directory
-└── README.md              # This file
+├── comments/                # Review result storage directory
+├── README.md                # This file
+└── README.zh-CN.md          # Chinese README
 ```
 
 ## 🔧 Core Module Description
