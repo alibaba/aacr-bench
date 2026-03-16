@@ -6,6 +6,7 @@ Provides core functionality for code review comment quality evaluation.
 from typing import Any, Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
 import logging
+import hashlib
 import re
 
 from evaluator_runner.utils.config import EvaluatorConfig, SemanticMatcherType
@@ -170,6 +171,13 @@ async def _try_match_with_reference(
     """Try to match generated comment with a reference comment"""
     comment_id = good_comment.get("id")
     reference_note = good_comment.get("note", "")
+    if not comment_id:
+        comment_id = (
+            f"{good_comment.get('path','')}:"
+            f"{good_comment.get('from_line','')}:"
+            f"{good_comment.get('to_line','')}"
+        )
+        comment_id += hashlib.sha256(reference_note.encode()).hexdigest()  
 
     if not reference_note:
         return False, False
