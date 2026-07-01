@@ -1,0 +1,24 @@
+# 虚拟环境
+.venv/
+
+# 密钥配置（含 token，切勿提交）
+.env
+
+# benchmark 原始数据：大文件通过 Git LFS 跟踪（见 .gitattributes），随仓库一起推送
+
+# 仓库 clone 缓存（体积大，自动生成）
+repo/
+
+# 转换后的标准数据集（由转换器生成）
+data/*.jsonl
+
+# codex 对话历史存档
+codex_home/
+
+# 评审结果与评测指标（运行产物）
+results/
+metrics/
+
+# Python 缓存
+__pycache__/
+*.pyc
