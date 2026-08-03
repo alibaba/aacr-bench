@@ -1,4 +1,4 @@
-# eval_all — Unified Code Review Evaluation Framework
+# evaluation — Unified Code Review Evaluation Framework
 
 Integrates **data loading → review execution → evaluation** into a single configurable pipeline.
 
@@ -11,7 +11,7 @@ no framework code changes needed.
 ## Directory Structure
 
 ```
-eval_all/
+evaluation/
 ├── pipeline.py            # CLI entry point + orchestration: python -m pipeline run ...
 ├── schema.py              # Standard data format (dataclass) + JSONL loading & validation
 ├── config.py              # Centralized paths / env vars / naming conventions
@@ -91,8 +91,8 @@ a `SchemaError` with line location, surfacing bad data as early as possible.
 
 ### 0. Prepare Environment
 
-This framework ships with its own [uv](https://docs.astral.sh/uv/) virtual environment (`eval_all/.venv`),
-with dependencies locked in `eval_all/requirements.txt` — ready to use, isolated from the rest of the project.
+This framework ships with its own [uv](https://docs.astral.sh/uv/) virtual environment (`evaluation/.venv`),
+with dependencies locked in `evaluation/requirements.txt` — ready to use, isolated from the rest of the project.
 
 > **Prerequisites** (install once before first use):
 >
@@ -106,8 +106,8 @@ with dependencies locked in `eval_all/requirements.txt` — ready to use, isolat
 # 0) First time: install and initialize Git LFS (macOS example)
 brew install git-lfs && git lfs install
 
-# 1) Enter the framework directory (all subsequent commands run inside eval_all/)
-cd eval_all
+# 1) Enter the framework directory (all subsequent commands run inside evaluation/)
+cd evaluation
 
 # 2) If freshly cloned, pull benchmark large files (LFS objects)
 git lfs pull
@@ -131,11 +131,11 @@ cp .env.example .env
 set -a && source .env && set +a
 ```
 
-> **Runtime convention**: All commands run inside `eval_all/` with venv activated:
+> **Runtime convention**: All commands run inside `evaluation/` with venv activated:
 > `python -m pipeline run ...` (review/eval), `python -m converters.<benchmark> ...` (conversion).
 > Claude / Codex MCP server subprocesses reuse the same interpreter via `sys.executable` — no extra config needed.
 
-The four config groups in `eval_all/.env` each serve a distinct purpose:
+The four config groups in `evaluation/.env` each serve a distinct purpose:
 
 | Purpose | Variables |
 | ------- | --------- |
@@ -160,7 +160,7 @@ The four config groups in `eval_all/.env` each serve a distinct purpose:
 
 ### 1. Convert a Benchmark to Standard Format
 
-> All commands below run inside `eval_all/` (with venv activated).
+> All commands below run inside `evaluation/` (with venv activated).
 
 Place raw data under the conventional location `benchmark/<benchmark name>/`, and the corresponding
 converter will read it by default, producing `data/<benchmark_key>.jsonl`. AACR-Bench converter is
@@ -212,7 +212,7 @@ python -m pipeline run --stage all --reviewer codex --dataset data/aacr_bench.js
 
 ## CLI Reference
 
-> Run inside `eval_all/` (with venv activated).
+> Run inside `evaluation/` (with venv activated).
 
 ```
 python -m pipeline run --reviewer {ocr|claude|codex} --dataset <standard JSONL> [options]
@@ -385,9 +385,9 @@ would exist but with an empty `review_output`, and would still enter evaluation 
 
 **Q: Semantic metrics are all zero during evaluation?**
 Judge is likely running in Mock mode (local similarity struggles with significant wording differences).
-Configure `JUDGE_API_KEY` in `eval_all/.env` and set `JUDGE_USE_MOCK=false`, then re-run to use a real
+Configure `JUDGE_API_KEY` in `evaluation/.env` and set `JUDGE_USE_MOCK=false`, then re-run to use a real
 judge model (the evaluation stage reads this file automatically).
 
 **Q: Where are repos cloned? Will they be cloned repeatedly?**
-Repos are cloned to `eval_all/repo/<owner__name>`. The same repo is cached and reused — only `fetch` is
+Repos are cloned to `evaluation/repo/<owner__name>`. The same repo is cached and reused — only `fetch` is
 run, never a repeated clone.

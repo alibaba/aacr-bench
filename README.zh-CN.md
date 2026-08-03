@@ -81,7 +81,7 @@ git clone https://github.com/alibaba/aacr-bench.git
 cd aacr-bench
 ```
 
-评测框架位于 [`eval_all/`](eval_all/) 目录，提供统一流水线：**数据加载 → 执行评审 → 执行评测**。支持三个评审系统：**OpenCodeReview (OCR)**、**Claude Code**、**Codex**。详细配置与用法见 [`eval_all/README.zh-CN.md`](eval_all/README.zh-CN.md)。
+评测框架位于 [`evaluation/`](evaluation/) 目录，提供统一流水线：**数据加载 → 执行评审 → 执行评测**。支持三个评审系统：**OpenCodeReview (OCR)**、**Claude Code**、**Codex**。详细配置与用法见 [`evaluation/README.zh-CN.md`](evaluation/README.zh-CN.md)。
 ## 📈 数据概览
 ### 数据集规模
 <div>

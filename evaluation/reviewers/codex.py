@@ -92,7 +92,7 @@ def resolve_codex_env() -> Dict[str, str]:
     if missing:
         raise SystemExit(
             f"Missing env vars: {', '.join(missing)}. "
-            "Run: set -a && source eval_all/.env && set +a"
+            "Run: set -a && source evaluation/.env && set +a"
         )
 
     env: Dict[str, str] = {

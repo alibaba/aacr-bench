@@ -16,7 +16,7 @@ AACR-Bench 原始字段映射：
 原始数据约定：放在 benchmark/AACR-Bench/ 下；转换产物按 benchmark 命名为 data/aacr_bench.jsonl。
 不传 --input / --output 时即采用该约定，无需手填长路径。
 
-用法（在 eval_all/ 目录内、已激活 venv）：
+用法（在 evaluation/ 目录内、已激活 venv）：
     python -m converters.aacr_bench [--limit 30] [--validate]
     # 或显式指定：
     python -m converters.aacr_bench \
@@ -33,7 +33,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# 允许以脚本方式直接运行：把 eval_all/ 加入 sys.path，使顶层模块可被导入
+# 允许以脚本方式直接运行：把 evaluation/ 加入 sys.path，使顶层模块可被导入
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import config  # noqa: E402

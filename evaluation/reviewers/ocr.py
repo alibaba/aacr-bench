@@ -35,7 +35,7 @@ def check_env(preview: bool) -> None:
     missing = config.missing_env_vars(config.OCR_REQUIRED_ENV_VARS)
     if missing and not preview:
         log(f"WARNING: missing OCR env vars: {', '.join(missing)}")
-        log("ocr review will fail to call the model until these are set (see eval_all/.env.example).")
+        log("ocr review will fail to call the model until these are set (see evaluation/.env.example).")
 
 
 def run_ocr_review(

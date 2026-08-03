@@ -1,5 +1,5 @@
 [project]
-name = "eval-all"
+name = "evaluation"
 version = "0.1.0"
 description = "统一代码审查评测框架：数据加载 -> 执行评审 -> 执行评测，一键运行"
 readme = "README.md"

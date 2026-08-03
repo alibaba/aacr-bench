@@ -12,17 +12,17 @@ from pathlib import Path
 from typing import List, Optional
 
 # 目录布局（相对本文件解析，保证脚本位置稳定）
-EVAL_ALL_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = EVAL_ALL_DIR.parent
+EVALUATION_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = EVALUATION_DIR.parent
 
-# 默认数据 / 产物目录（全部落在 eval_all/ 内，保持目录自洽）
+# 默认数据 / 产物目录（全部落在 evaluation/ 内，保持目录自洽）
 # 原始数据约定：每个 benchmark 的原始文件放在 benchmark/<benchmark名>/ 下，
 # 转换器读取后产出标准格式到 data/<benchmark名>.jsonl（按 benchmark 命名，避免覆盖）。
-BENCHMARK_DIR = EVAL_ALL_DIR / "benchmark"
-DATA_DIR = EVAL_ALL_DIR / "data"
-DEFAULT_REPO_DIR = EVAL_ALL_DIR / "repo"
-DEFAULT_RESULTS_DIR = EVAL_ALL_DIR / "results"
-DEFAULT_METRICS_DIR = EVAL_ALL_DIR / "metrics"
+BENCHMARK_DIR = EVALUATION_DIR / "benchmark"
+DATA_DIR = EVALUATION_DIR / "data"
+DEFAULT_REPO_DIR = EVALUATION_DIR / "repo"
+DEFAULT_RESULTS_DIR = EVALUATION_DIR / "results"
+DEFAULT_METRICS_DIR = EVALUATION_DIR / "metrics"
 
 
 def benchmark_raw_dir(benchmark_name: str) -> Path:
@@ -119,12 +119,12 @@ CLAUDE_MAX_RETRIES_VAR = "CLAUDE_CODE_MAX_RETRIES"
 CLAUDE_MAX_RETRIES_DEFAULT = 10
 
 # StopFailure hook 配置
-HOOKS_DIR = EVAL_ALL_DIR / "hooks"
+HOOKS_DIR = EVALUATION_DIR / "hooks"
 STOP_FAILURE_HOOK_SCRIPT = HOOKS_DIR / "on_stop_failure.py"
 RETRY_EXHAUSTED_LOG = "retry_exhausted.jsonl"
 
 # Claude 评审用的 MCP findings server
-MCP_SERVER_SCRIPT = EVAL_ALL_DIR / "mcp_finding_server.py"
+MCP_SERVER_SCRIPT = EVALUATION_DIR / "mcp_finding_server.py"
 MCP_SERVER_NAME = "findings"
 MCP_RESULTS_DIR_ENV_VAR = "REVIEW_RESULTS_DIR"
 MCP_INSTANCE_ID_ENV_VAR = "REVIEW_INSTANCE_ID"
@@ -151,7 +151,7 @@ CODEX_PROVIDER_ID = "gateway"
 
 # Codex 评审用的 MCP findings server（codex 专用，schema 与 Claude 版不同）
 # finding 字段：{file, start_line, end_line, severity, summary, description}
-CODEX_MCP_SERVER_SCRIPT = EVAL_ALL_DIR / "mcp_codex_finding_server.py"
+CODEX_MCP_SERVER_SCRIPT = EVALUATION_DIR / "mcp_codex_finding_server.py"
 CODEX_MCP_SERVER_NAME = "findings"  # server 命名空间与 Claude 版同名无冲突（不同时跑）
 
 # 评测（LLM as a Judge）专用配置，与 OCR/Claude 解耦；

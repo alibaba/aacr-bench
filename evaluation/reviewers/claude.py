@@ -59,7 +59,7 @@ def resolve_claude_env() -> Dict[str, str]:
     if missing:
         raise SystemExit(
             f"Missing env vars: {', '.join(missing)}. "
-            "Run: set -a && source eval_all/.env && set +a"
+            "Run: set -a && source evaluation/.env && set +a"
         )
     max_retries = os.environ.get(
         config.CLAUDE_MAX_RETRIES_VAR,

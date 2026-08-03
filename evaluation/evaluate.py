@@ -2,7 +2,7 @@
 
 匹配与指标统计由本地的 judge 模块完成（path -> side -> line(k) -> semantic 四阶段）。
 
-裁判模型（LLM as a Judge）与 OCR/Claude 解耦：在 eval_all/.env 用
+裁判模型（LLM as a Judge）与 OCR/Claude 解耦：在 evaluation/.env 用
 JUDGE_BASE_URL / JUDGE_API_KEY / JUDGE_MODEL / JUDGE_USE_MOCK 配置，
 judge 模块直接读取这些（由 config 统一定义的）变量名，本模块只负责在
 import judge 之前加载 .env 使它们就位。
@@ -33,7 +33,7 @@ from schema import ReviewInstance
 
 
 def _bootstrap_judge_env() -> None:
-    """在 import judge 之前加载 eval_all/.env，使 JUDGE_* 变量就位。
+    """在 import judge 之前加载 evaluation/.env，使 JUDGE_* 变量就位。
 
     必须在 import judge 之前调用：judge 的 USE_MOCK_LLM 与 LLM 客户端在导入时
     就根据环境变量固化，导入后再设置将不再生效。judge 直接读取 config 定义的
@@ -43,7 +43,7 @@ def _bootstrap_judge_env() -> None:
         from dotenv import load_dotenv
     except ImportError:
         return
-    env_file = config.EVAL_ALL_DIR / ".env"
+    env_file = config.EVALUATION_DIR / ".env"
     if env_file.exists():
         load_dotenv(env_file)
 

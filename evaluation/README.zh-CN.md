@@ -1,4 +1,4 @@
-# eval_all — 统一代码审查评测框架
+# evaluation — 统一代码审查评测框架
 
 把 **数据加载 → 执行评审 → 执行评测** 三个阶段整合成一条可配置流水线。
 
@@ -10,7 +10,7 @@
 ## 目录结构
 
 ```
-eval_all/
+evaluation/
 ├── pipeline.py            # CLI 入口 + 编排：python -m pipeline run ...
 ├── schema.py              # 标准数据格式（dataclass）+ JSONL 加载校验
 ├── config.py              # 路径 / 环境变量 / 命名规则集中配置
@@ -88,8 +88,8 @@ eval_all/
 
 ### 0. 准备环境
 
-本框架自带独立的 [uv](https://docs.astral.sh/uv/) 虚拟环境（`eval_all/.venv`），
-依赖锁定在 `eval_all/requirements.txt`，开箱即用、与项目其它部分隔离。
+本框架自带独立的 [uv](https://docs.astral.sh/uv/) 虚拟环境（`evaluation/.venv`），
+依赖锁定在 `evaluation/requirements.txt`，开箱即用、与项目其它部分隔离。
 
 > **前置工具**（首次使用需先装好）：
 >
@@ -103,8 +103,8 @@ eval_all/
 # 0) 首次：安装并初始化 Git LFS（macOS 示例）
 brew install git-lfs && git lfs install
 
-# 1) 进入框架目录（后续所有命令都在 eval_all/ 内执行）
-cd eval_all
+# 1) 进入框架目录（后续所有命令都在 evaluation/ 内执行）
+cd evaluation
 
 # 2) 若是刚 clone 的仓库，拉取 benchmark 大文件（LFS 实体）
 git lfs pull
@@ -128,11 +128,11 @@ cp .env.example .env
 set -a && source .env && set +a
 ```
 
-> **运行约定**：所有命令都在 `eval_all/` 目录内、激活 venv 后执行：
+> **运行约定**：所有命令都在 `evaluation/` 目录内、激活 venv 后执行：
 > `python -m pipeline run ...`（评审/评测）、`python -m converters.<benchmark> ...`（转换）。
 > Claude / Codex 评审用的 MCP server 子进程通过 `sys.executable` 复用同一解释器，无需额外配置。
 
-`eval_all/.env` 中四套配置各司其职：
+`evaluation/.env` 中四套配置各司其职：
 
 | 用途 | 变量 |
 | ---- | ---- |
@@ -155,7 +155,7 @@ set -a && source .env && set +a
 
 ### 1. 把 benchmark 转换为标准格式
 
-> 以下命令均在 `eval_all/` 目录内执行（已激活 venv）。
+> 以下命令均在 `evaluation/` 目录内执行（已激活 venv）。
 
 把原始数据放到约定位置 `benchmark/<benchmark名>/` 后，对应转换器默认即可读取，
 产出 `data/<benchmark_key>.jsonl`。当前已内置 AACR-Bench 的转换器：
@@ -206,7 +206,7 @@ python -m pipeline run --stage all --reviewer codex --dataset data/aacr_bench.js
 
 ## CLI 参考
 
-> 在 `eval_all/` 目录内执行（已激活 venv）。
+> 在 `evaluation/` 目录内执行（已激活 venv）。
 
 ```
 python -m pipeline run --reviewer {ocr|claude|codex} --dataset <标准JSONL> [options]
@@ -367,8 +367,8 @@ failure scenario + 建议修复）。Codex 的 `severity` 字段仅存档，不�
 不同——后者会有结果文件但 `review_output` 为空，仍会进入评测并拉低召回。
 
 **Q：评测时语义指标全是 0？**
-多半是 Judge 走了 Mock 模式（措辞差异大时本地相似度难命中）。配置 `eval_all/.env` 的
+多半是 Judge 走了 Mock 模式（措辞差异大时本地相似度难命中）。配置 `evaluation/.env` 的
 `JUDGE_API_KEY` 并 `JUDGE_USE_MOCK=false` 后重跑即可走真实裁判模型（评测阶段会自动读取该文件）。
 
 **Q：仓库 clone 在哪？会重复 clone 吗？**
-clone 到 `eval_all/repo/<owner__name>`，同一仓库缓存复用、只 fetch 不重复 clone。
+clone 到 `evaluation/repo/<owner__name>`，同一仓库缓存复用、只 fetch 不重复 clone。

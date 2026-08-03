@@ -3,7 +3,7 @@
 把数据加载、执行评审、执行评测三个阶段串成一条可配置的流水线，
 通过 --stage 控制只跑某个阶段或全跑，通过 --reviewer 切换评审器。
 
-在 eval_all/ 目录内运行：
+在 evaluation/ 目录内运行：
     python -m pipeline run --stage all    --reviewer claude --dataset data/<benchmark>.jsonl
     python -m pipeline run --stage review --reviewer ocr    --dataset data/<benchmark>.jsonl --limit 5
     python -m pipeline run --stage eval   --reviewer claude --dataset data/<benchmark>.jsonl
