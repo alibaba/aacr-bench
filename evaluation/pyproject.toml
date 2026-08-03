@@ -1,0 +1,19 @@
+[project]
+name = "evaluation"
+version = "0.1.0"
+description = "统一代码审查评测框架：数据加载 -> 执行评审 -> 执行评测，一键运行"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.28",
+    "tqdm>=4.65",
+    "openai>=1.30",
+    "python-dotenv>=1.0",
+    "mcp>=1.0",
+]
+
+[tool.uv]
+# 仅本框架自身依赖，不引入项目根的其它包，保持目录自洽
+
+[tool.setuptools]
+py-modules = []

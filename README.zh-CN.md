@@ -75,98 +75,13 @@ AACR-Bench 提供**四大维度**的系统化评测能力，支撑多样化的�
 - **持续监控**：跟踪模型在实际使用中的性能变化
 
 ## 🚀 快速开始
-### 克隆项目并下载数据集
+
 ```bash
 git clone https://github.com/alibaba/aacr-bench.git
 cd aacr-bench
 ```
 
-### 安装依赖
-```bash
-pip install -r requirements.txt
-```
-
-### 配置 Claude CLI
-
-编辑 `configs/config.json` 并设置 Claude CLI 的安装路径:
-
-```json
-{
-  "cli_path": "your_path_to_claude.cmd",
-  "data_path": "your_path_to_positive_samples.json"
-}
-```
-
-### 配置评测环境变量
-在 `evaluator_runner/utils/` 目录下创建 `.env` 文件：
-```env
-LLM_MODEL_URL="your_llm_model_url"
-LLM_MODEL="your_llm_model"
-LLM_API_KEY="your_llm_api_key"
-
-EMBEDDING_MODEL_URL="your_embedding_model_url"
-EMBEDDING_MODEL="your_embedding_model"
-EMBEDDING_API_KEY="your_embedding_api_key"
-```
-
-
-
-### 准备数据集
-
-首次运行时,需要将原始数据转换为任务格式。在 `main.py` 中取消注释并运行:
-
-```python
-if __name__ == "__main__":
-    load_data_as_task()  # 首次运行:生成任务文件
-```
-
-这将:
-- 读取原始数据集(由 `data_path` 指定)
-- 为每个 PR 添加 `finish` 标志以跟踪进度
-- 生成 `tmp_data.json` 任务文件
-
-### 运行代码评审
-
-```bash
-cd claude-code-demo
-python main.py
-```
-
-### 运行评测
-```python
-import asyncio
-from evaluator_runner import (
-    get_evaluator_ans_from_json,
-    load_generated_comments_from_file,
-    EvaluatorConfig
-)
-
-async def main():
-    # 加载待评测的AI生成评论
-    generated_comments = load_generated_comments_from_file("path/to/comments.txt")
-    
-    # 参考评论（从 positive_samples.json 加载）
-    reference_comments = [...]
-    
-    # 运行评测
-    result = await get_evaluator_ans_from_json(
-        github_pr_url="https://github.com/owner/repo/pull/123",
-        generated_comments=generated_comments,
-        good_comments=reference_comments
-    )
-    
-    print(f"位置匹配率: {result['positive_line_match_rate']}")
-    print(f"语义匹配率: {result['positive_match_rate']}")
-
-asyncio.run(main())
-```
-
-### 批量评测
-```bash
-# 配置 evaluator_runner/example_test.py 中的参数后运行：
-python evaluator_runner/example_test.py
-```
-
+评测框架位于 [`evaluation/`](evaluation/) 目录，提供统一流水线：**数据加载 → 执行评审 → 执行评测**。支持三个评审系统：**OpenCodeReview (OCR)**、**Claude Code**、**Codex**。详细配置与用法见 [`evaluation/README.zh-CN.md`](evaluation/README.zh-CN.md)。
 ## 📈 数据概览
 ### 数据集规模
 <div>
@@ -194,7 +109,7 @@ python evaluator_runner/example_test.py
 
 ### 分类统计结果
 ##### 语言类别占比
-<img src="imgs/comments-distribution.png" width="40%" syt height="40%" />
+<img src="imgs/comments-distribution.png" width="40%" />
 
 <img src="imgs/category_zh.png" width="49%" /><img src="imgs/context_zh.png" width="49%" />
 

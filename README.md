@@ -74,95 +74,13 @@ AACR-Bench provides systematic evaluation capabilities across **four core dimens
 - **Continuous monitoring**: Track model performance changes in actual use
 
 ## 🚀 Quick Start
-### Clone Repository and Download Dataset
+
 ```bash
 git clone https://github.com/alibaba/aacr-bench.git
 cd aacr-bench
 ```
 
-### Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### Configure Claude CLI
-
-Edit `configs/config.json` and set the Claude CLI installation path:
-
-```json
-{
-  "cli_path": "your_path_to_claude.cmd",
-  "data_path": "your_path_to_positive_samples.json"
-}
-```
-
-### Configure Evaluation Environment Variables
-Create a `.env` file in the `evaluator_runner/utils/` directory:
-```env
-LLM_MODEL_URL="your_llm_model_url"
-LLM_MODEL="your_llm_model"
-LLM_API_KEY="your_llm_api_key"
-
-EMBEDDING_MODEL_URL="your_embedding_model_url"
-EMBEDDING_MODEL="your_embedding_model"
-EMBEDDING_API_KEY="your_embedding_api_key"
-```
-
-### Prepare Dataset
-
-For the first run, you need to convert the raw data to task format. Uncomment and run in `main.py`:
-
-```python
-if __name__ == "__main__":
-    load_data_as_task()  # First run: generate task file
-```
-
-This will:
-- Read the raw dataset (specified by `data_path`)
-- Add `finish` flag to each PR for progress tracking
-- Generate `tmp_data.json` task file
-
-### Run Code Review
-
-```bash
-cd claude-code-demo
-python main.py
-```
-
-### Run Evaluation
-```python
-import asyncio
-from evaluator_runner import (
-    get_evaluator_ans_from_json,
-    load_generated_comments_from_file,
-    EvaluatorConfig
-)
-
-async def main():
-    # Load AI-generated comments to evaluate
-    generated_comments = load_generated_comments_from_file("path/to/comments.txt")
-    
-    # Reference comments (load from positive_samples.json)
-    reference_comments = [...]
-    
-    # Run evaluation
-    result = await get_evaluator_ans_from_json(
-        github_pr_url="https://github.com/owner/repo/pull/123",
-        generated_comments=generated_comments,
-        good_comments=reference_comments
-    )
-    
-    print(f"Location Match Rate: {result['positive_line_match_rate']}")
-    print(f"Semantic Match Rate: {result['positive_match_rate']}")
-
-asyncio.run(main())
-```
-
-### Batch Evaluation
-```bash
-# Configure parameters in evaluator_runner/example_test.py, then run:
-python evaluator_runner/example_test.py
-```
+The evaluation framework is in the [`evaluation/`](evaluation/) directory, which provides a unified pipeline: **data loading → review execution → evaluation**. It supports three reviewers: **OpenCodeReview (OCR)**, **Claude Code**, and **Codex**. See [`evaluation/README.md`](evaluation/README.md) for detailed setup and usage.
 
 ## 📈 Data Overview
 ### Dataset Scale
@@ -191,7 +109,7 @@ python evaluator_runner/example_test.py
 
 ### Classification Statistics
 ##### Language Distribution
-<img src="imgs/comments-distribution.png" width="40%" syt height="40%" />
+<img src="imgs/comments-distribution.png" width="40%" />
 
 <img src="imgs/category.png" width="49%" /><img src="imgs/context.png" width="49%" />
 
