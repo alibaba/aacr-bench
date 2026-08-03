@@ -1,3 +1,1 @@
-benchmark/**/*.jsonl filter=lfs diff=lfs merge=lfs -text
-benchmark/**/*.parquet filter=lfs diff=lfs merge=lfs -text
-benchmark/**/*.json filter=lfs diff=lfs merge=lfs -text
+# benchmark/ 下的原始数据按同名 .meta.json 描述从远端拉取（见 README），不再用 Git LFS 跟踪。

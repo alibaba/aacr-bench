@@ -25,7 +25,7 @@ evaluation/
 ├── evaluate.py            # 评测编排：对齐数据 -> 调 judge -> 汇总指标
 ├── converters/
 │   └── aacr_bench.py      # AACR-Bench -> 标准格式 转换器
-├── benchmark/<名字>/      # 各 benchmark 的原始数据（约定输入位置，大文件走 Git LFS）
+├── benchmark/<名字>/      # 各 benchmark 的原始数据（提交 *.meta.json 描述，数据首次运行时自动下载并校验）
 ├── data/<名字>.jsonl      # 转换后的标准格式数据集（按 benchmark 命名）
 ├── repo/                  # 仓库 clone 缓存（<owner__name>，自动生成）
 ├── results/<benchmark>/<reviewer>/<run_id>/   # 评审结果（每次 run 独立目录，防覆盖）
@@ -94,34 +94,27 @@ evaluation/
 > **前置工具**（首次使用需先装好）：
 >
 > - [uv](https://docs.astral.sh/uv/)：Python 环境与依赖管理
-> - [Git LFS](https://git-lfs.com/)：`benchmark/` 下的大文件（数据集）通过 LFS 存储。
->   **若不装 LFS，clone 后 `benchmark/` 里只是文本指针而非真实数据，转换器会失败。**
->   安装后执行一次 `git lfs install`；已 clone 过的仓库补拉数据：`git lfs pull`。
+> - benchmark 原始数据无需 Git LFS：每个 benchmark 提交一份 `*.meta.json`（含 url + sha256），
+>   转换器首次运行时**自动下载并校验**，缓存到 `benchmark/<名字>/` 供后续复用。
 > - Node.js / npm：安装评审器 CLI 所需。
 
 ```bash
-# 0) 首次：安装并初始化 Git LFS（macOS 示例）
-brew install git-lfs && git lfs install
-
-# 1) 进入框架目录（后续所有命令都在 evaluation/ 内执行）
+# 0) 进入框架目录（后续所有命令都在 evaluation/ 内执行）
 cd evaluation
 
-# 2) 若是刚 clone 的仓库，拉取 benchmark 大文件（LFS 实体）
-git lfs pull
-
-# 3) 创建框架专属虚拟环境并安装锁定依赖
+# 1) 创建框架专属虚拟环境并安装锁定依赖
 uv venv .venv --python 3.11
 uv pip install -r requirements.txt
 
-# 4) 激活虚拟环境（之后直接用 python 即可）
+# 2) 激活虚拟环境（之后直接用 python 即可）
 source .venv/bin/activate
 
-# 5) 安装评审器 CLI（按需，全局安装）
+# 3) 安装评审器 CLI（按需，全局安装）
 npm install -g @alibaba-group/open-code-review   # ocr 评审器
 npm install -g @anthropic-ai/claude-code         # claude 评审器
 npm install -g @openai/codex                    # codex 评审器
 
-# 6) 配置 LLM：从模板复制出 .env 并填入真实 token
+# 4) 配置 LLM：从模板复制出 .env 并填入真实 token
 #    （.env 已被 .gitignore 忽略，不会误提交泄露）
 cp .env.example .env
 # 编辑 .env 填好 OCR / Claude / Codex / Judge 四套配置后加载到当前 shell：
@@ -327,8 +320,9 @@ failure scenario + 建议修复）。Codex 的 `severity` 字段仅存档，不�
 
 下面以已内置的 `converters/aacr_bench.py` 为实际范例：
 
-1. **放原始数据**：放到约定目录 `benchmark/<benchmark名>/`（如 `benchmark/AACR-Bench/`）。
-   大文件建议用 Git LFS 跟踪（见「准备环境」）。
+1. **准备原始数据**：在约定目录 `benchmark/<benchmark名>/`（如 `benchmark/AACR-Bench/`）下提交
+   一份同名的 `*.meta.json`（字段：`url`、`sha256`，可选 `description`）。
+   转换器据此**自动下载并校验**数据（参考 `aacr_bench.py` 的 `ensure_raw_file`）；数据文件本身被 gitignore，不提交。
 2. **写转换器**：复制 `converters/aacr_bench.py` 改写，
    核心是 `convert_record()` 把原始记录逐条转成 `ReviewInstance`。建议复用路径约定：
    - 默认输入 `config.benchmark_raw_dir("<benchmark名>") / <原始文件名>`

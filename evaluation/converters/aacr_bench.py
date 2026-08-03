@@ -15,6 +15,7 @@ AACR-Bench 原始字段映射：
 
 原始数据约定：放在 benchmark/AACR-Bench/ 下；转换产物按 benchmark 命名为 data/aacr_bench.jsonl。
 不传 --input / --output 时即采用该约定，无需手填长路径。
+约定输入缺失时，按同名 positive_samples.meta.json 描述从远端拉取并校验后缓存到本地。
 
 用法（在 evaluation/ 目录内、已激活 venv）：
     python -m converters.aacr_bench [--limit 30] [--validate]
@@ -26,10 +27,12 @@ AACR-Bench 原始字段映射：
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import random
 import re
 import sys
+import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -47,6 +50,75 @@ DEFAULT_OUTPUT = config.dataset_path(BENCHMARK_KEY)
 
 # 从 githubPrUrl 解析 owner/name，如 https://github.com/FreeCAD/FreeCAD/pull/19411 -> FreeCAD/FreeCAD
 _GITHUB_PR_PATTERN = re.compile(r"github\.com/([^/]+)/([^/]+)/pull/\d+", re.IGNORECASE)
+
+
+def _load_meta(meta_path: Path) -> Dict[str, Any]:
+    """读取同名 .meta.json；文件不存在返回空 dict，解析失败报错退出。"""
+    try:
+        return json.loads(meta_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError as error:
+        raise SystemExit(f"元数据文件 JSON 解析失败 {meta_path}: {error}")
+
+
+def _sha256(path: Path) -> str:
+    """计算文件 sha256（分块读取，避免大文件一次性载入内存）。"""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 16), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def ensure_raw_file(input_path: Path) -> None:
+    """按同名 .meta.json 描述拉取并校验原始数据；缓存命中且校验通过则跳过下载。
+
+    meta.json 约定字段：url（下载地址）、sha256（完整性校验，可选）。
+    本地文件存在且校验通过（或 meta 无 sha256）即直接复用；否则按 url 下载到 input_path，
+    再按 sha256 校验完整性。无 meta 且文件缺失时报错退出。
+    """
+    input_path = Path(input_path)
+    meta_path = input_path.with_name(f"{input_path.stem}.meta.json")
+    meta = _load_meta(meta_path)
+
+    expected_sha = meta.get("sha256")
+    if input_path.exists() and (expected_sha is None or _sha256(input_path) == expected_sha):
+        return
+
+    url = meta.get("url")
+    if not url:
+        if input_path.exists():
+            return
+        raise SystemExit(
+            f"输入文件不存在且无元数据可拉取: {input_path}\n"
+            f"期望同名 .meta.json: {meta_path}"
+        )
+
+    input_path.parent.mkdir(parents=True, exist_ok=True)
+    print(f"[fetch] 本地缺失或校验未通过 {input_path}，从远端下载：\n  {url}")
+    try:
+        with urllib.request.urlopen(url, timeout=60) as response:
+            if response.status != 200:
+                raise SystemExit(
+                    f"下载失败：HTTP {response.status} {response.reason}\n  URL: {url}"
+                )
+            input_path.write_bytes(response.read())
+    except SystemExit:
+        raise
+    except Exception as error:
+        raise SystemExit(
+            f"下载原始数据失败：{error}\n  URL: {url}\n"
+            f"请检查网络，或手动下载数据放置到 {input_path} 后重试。"
+        )
+
+    if expected_sha is not None:
+        actual_sha = _sha256(input_path)
+        if actual_sha != expected_sha:
+            raise SystemExit(
+                f"下载内容校验失败：\n  期望 sha256={expected_sha}\n"
+                f"  实际 sha256={actual_sha}\n  URL: {url}"
+            )
 
 
 def parse_repo_from_pr_url(pr_url: Any) -> Optional[str]:
@@ -124,8 +196,7 @@ def convert_file(
     """
     input_path = Path(input_path)
     output_path = Path(output_path)
-    if not input_path.exists():
-        raise SystemExit(f"输入文件不存在: {input_path}")
+    ensure_raw_file(input_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:

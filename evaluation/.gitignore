@@ -4,7 +4,9 @@
 # 密钥配置（含 token，切勿提交）
 .env
 
-# benchmark 原始数据：大文件通过 Git LFS 跟踪（见 .gitattributes），随仓库一起推送
+# benchmark 原始数据：体积大，按同名 .meta.json 描述从远端拉取（见 converter），不提交
+benchmark/**/*.json
+!benchmark/**/*.meta.json
 
 # 仓库 clone 缓存（体积大，自动生成）
 repo/
