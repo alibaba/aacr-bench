@@ -336,9 +336,10 @@ results directory `results/<key>/`, and metrics directory `metrics/<key>/`.
 Use the built-in `converters/aacr_bench.py` as a reference example:
 
 1. **Provide raw data**: Commit a same-named `*.meta.json` (fields: `url`, `sha256`, optional
-   `description`) under `benchmark/<benchmark name>/` (e.g. `benchmark/AACR-Bench/`).
+   `filename`, `description`) under `benchmark/<benchmark name>/` (e.g. `benchmark/AACR-Bench/`).
    The converter reads it to **auto-download** and verify the data on first run (see
    `aacr_bench.py`'s `ensure_raw_file`); the data file itself is gitignored, never committed.
+   `filename` (defaults to the meta's stem) lets the data file be named differently from the meta.
 2. **Write a converter**: Copy `converters/aacr_bench.py` and adapt it. The core is `convert_record()`
    which transforms each raw record into a `ReviewInstance`. Reuse the path conventions:
    - Default input: `config.benchmark_raw_dir("<benchmark name>") / <raw filename>`

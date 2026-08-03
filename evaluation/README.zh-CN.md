@@ -321,8 +321,9 @@ failure scenario + 建议修复）。Codex 的 `severity` 字段仅存档，不�
 下面以已内置的 `converters/aacr_bench.py` 为实际范例：
 
 1. **准备原始数据**：在约定目录 `benchmark/<benchmark名>/`（如 `benchmark/AACR-Bench/`）下提交
-   一份同名的 `*.meta.json`（字段：`url`、`sha256`，可选 `description`）。
+   一份同名的 `*.meta.json`（字段：`url`、`sha256`，可选 `filename`、`description`）。
    转换器据此**自动下载并校验**数据（参考 `aacr_bench.py` 的 `ensure_raw_file`）；数据文件本身被 gitignore，不提交。
+   `filename`（缺省取 meta 的 stem）允许数据文件名与 meta 文件名不同。
 2. **写转换器**：复制 `converters/aacr_bench.py` 改写，
    核心是 `convert_record()` 把原始记录逐条转成 `ReviewInstance`。建议复用路径约定：
    - 默认输入 `config.benchmark_raw_dir("<benchmark名>") / <原始文件名>`
