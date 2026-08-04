@@ -26,7 +26,7 @@ evaluation/
 ├── evaluate.py            # Evaluation orchestration: align data → call judge → aggregate metrics
 ├── converters/
 │   └── aacr_bench.py      # AACR-Bench → standard format converter
-├── benchmark/<name>/      # Raw data for each benchmark (conventional input location, large files via Git LFS)
+├── benchmark/<name>/      # Raw data for each benchmark (data described by *.meta.json, auto-downloaded on first run)
 ├── data/<name>.jsonl      # Converted standard format datasets (named by benchmark)
 ├── repo/                  # Repository clone cache (<owner__name>, auto-generated)
 ├── results/<benchmark>/<reviewer>/<run_id>/   # Review results (isolated per run, no overwrites)
@@ -97,34 +97,28 @@ with dependencies locked in `evaluation/requirements.txt` — ready to use, isol
 > **Prerequisites** (install once before first use):
 >
 > - [uv](https://docs.astral.sh/uv/): Python environment and dependency management
-> - [Git LFS](https://git-lfs.com/): Large files under `benchmark/` are stored via LFS.
->   **Without LFS, `benchmark/` will contain text pointers instead of real data — converters will fail.**
->   Run `git lfs install` once after installing; for already-cloned repos, run `git lfs pull`.
+> - Benchmark raw data needs no Git LFS: each benchmark ships a committed `*.meta.json`
+>   (url + sha256); converters **auto-download** and verify the data on first run, caching
+>   under `benchmark/<name>/` for reuse.
 > - Node.js / npm: Required to install reviewer CLIs.
 
 ```bash
-# 0) First time: install and initialize Git LFS (macOS example)
-brew install git-lfs && git lfs install
-
-# 1) Enter the framework directory (all subsequent commands run inside evaluation/)
+# 0) Enter the framework directory (all subsequent commands run inside evaluation/)
 cd evaluation
 
-# 2) If freshly cloned, pull benchmark large files (LFS objects)
-git lfs pull
-
-# 3) Create framework-specific virtual environment and install locked dependencies
+# 1) Create framework-specific virtual environment and install locked dependencies
 uv venv .venv --python 3.11
 uv pip install -r requirements.txt
 
-# 4) Activate the virtual environment (then use python directly)
+# 2) Activate the virtual environment (then use python directly)
 source .venv/bin/activate
 
-# 5) Install reviewer CLIs (as needed, global install)
+# 3) Install reviewer CLIs (as needed, global install)
 npm install -g @alibaba-group/open-code-review   # ocr reviewer
 npm install -g @anthropic-ai/claude-code         # claude reviewer
 npm install -g @openai/codex                    # codex reviewer
 
-# 6) Configure LLM: copy the template and fill in real tokens
+# 4) Configure LLM: copy the template and fill in real tokens
 #    (.env is .gitignore'd, won't be accidentally committed)
 cp .env.example .env
 # Edit .env to fill in OCR / Claude / Codex / Judge configs, then load into current shell:
@@ -341,8 +335,11 @@ results directory `results/<key>/`, and metrics directory `metrics/<key>/`.
 
 Use the built-in `converters/aacr_bench.py` as a reference example:
 
-1. **Place raw data**: Put it under the conventional directory `benchmark/<benchmark name>/`
-   (e.g. `benchmark/AACR-Bench/`). Large files should be tracked with Git LFS (see "Prepare Environment").
+1. **Provide raw data**: Commit a same-named `*.meta.json` (fields: `url`, `sha256`, optional
+   `filename`, `description`) under `benchmark/<benchmark name>/` (e.g. `benchmark/AACR-Bench/`).
+   The converter reads it to **auto-download** and verify the data on first run (see
+   `aacr_bench.py`'s `ensure_raw_file`); the data file itself is gitignored, never committed.
+   `filename` (defaults to the meta's stem) lets the data file be named differently from the meta.
 2. **Write a converter**: Copy `converters/aacr_bench.py` and adapt it. The core is `convert_record()`
    which transforms each raw record into a `ReviewInstance`. Reuse the path conventions:
    - Default input: `config.benchmark_raw_dir("<benchmark name>") / <raw filename>`
