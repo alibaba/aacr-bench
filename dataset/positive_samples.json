@@ -11571,6 +11571,17 @@
         "to_line": 369,
         "category": "Maintainability and Readability",
         "context": "File Level"
+      },
+      {
+        "is_ai_comment": true,
+        "note": "Rethrowing `CoreException` from `IFile.getContents()` as `RuntimeException` violates the `getAdapter` contract: the Path branch and base class return null when adaptation is unavailable. Callers such as `DBNPathBase.dropNodes` do not expect `getAdapter` to throw, so a single unreadable/locked file aborts the entire batch drop/copy. Catch `CoreException`, log it, and return null instead.",
+        "path": "plugins/org.jkiss.dbeaver.model.rcp/src/org/jkiss/dbeaver/model/navigator/DBNResource.java",
+        "side": "right",
+        "source_model": "GLM-5.2",
+        "from_line": 428,
+        "to_line": 428,
+        "category": "Code Defect",
+        "context": "File Level"
       }
     ],
     "category": "Bug Fix"
