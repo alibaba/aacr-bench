@@ -5739,17 +5739,6 @@
     "comments": [
       {
         "is_ai_comment": false,
-        "note": "Throwing `RuntimeException` on `CoreException` in the `InputStream` adapter handling violates `IAdaptable`'s contract. Replace with logging and returning `null` or delegating to the super implementation.",
-        "path": "plugins/org.jkiss.dbeaver.model.rcp/src/org/jkiss/dbeaver/model/navigator/DBNResource.java",
-        "side": "right",
-        "source_model": "",
-        "from_line": 428,
-        "to_line": 428,
-        "category": "Code Defect",
-        "context": "Repo Level"
-      },
-      {
-        "is_ai_comment": false,
         "note": "The `copyInputStream` method should be inlined in `dropNodes` as its extraction does not improve code clarity.  \nAdditionally, methods requiring file paths should accept a pre-resolved `Path` object instead of separate folder and file name arguments to avoid redundant resolution operations.",
         "path": "plugins/org.jkiss.dbeaver.model/src/org/jkiss/dbeaver/model/navigator/fs/DBNPathBase.java",
         "side": "right",
