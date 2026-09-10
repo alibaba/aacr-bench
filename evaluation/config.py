@@ -161,6 +161,13 @@ JUDGE_API_KEY_VAR = "JUDGE_API_KEY"
 JUDGE_MODEL_VAR = "JUDGE_MODEL"
 JUDGE_USE_MOCK_VAR = "JUDGE_USE_MOCK"
 
+# codereview-ai 评审器（外壳调用 headless CLI）：`CODEREVIEW_COMMAND` 指定如何运行
+# `python -m codereview_ai.bench_review`（LLM/平台配置由 codereview-ai 自读 CR_LLM_*
+# 环境变量，经父进程继承）。`CODEREVIEW_CACHE_DIR` 可选，缺省 evaluation/.codereview_cache。
+CODEREVIEW_COMMAND_VAR = "CODEREVIEW_COMMAND"
+CODEREVIEW_CACHE_DIR_VAR = "CODEREVIEW_CACHE_DIR"
+DEFAULT_CODEREVIEW_CACHE_DIR = EVALUATION_DIR / ".codereview_cache"
+
 
 def safe_id(instance_id: str) -> str:
     """instance_id -> 结果文件名安全 id（把 / 替换为 __）。"""

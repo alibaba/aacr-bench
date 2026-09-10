@@ -181,6 +181,35 @@ def build_target_comments_from_ocr(result: Dict[str, Any]) -> List[Dict[str, Any
     return comments
 
 
+def build_target_comments_from_codereview(result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """codereview 结果 review.findings -> 待评测评论；`line` 作为起始=终止。
+
+    codereview CLI 的 findings 用 `line`（新侧行号）单值定位，与 Claude 同构。
+    """
+    review = result.get("review")
+    if not isinstance(review, dict):
+        return []
+    comments = []
+    for finding in review.get("findings", []) or []:
+        if not isinstance(finding, dict):
+            continue
+        note = (finding.get("content") or "").strip()
+        if not note:
+            continue
+        line_range = _normalize_line_range(finding.get("line"), finding.get("line"))
+        comments.append(
+            {
+                "note": note,
+                "path": finding.get("file", ""),
+                # 与 ocr/claude/codex 一致：评审面向 diff 右侧（新代码），side 硬编码 "right"
+                "side": "right",
+                "from_line": line_range["from_line"],
+                "to_line": line_range["to_line"],
+            }
+        )
+    return comments
+
+
 def load_target_comments(
     results_dir: Path, reviewer: str, instance_id: str
 ) -> Optional[List[Dict[str, Any]]]:
@@ -200,6 +229,7 @@ def load_target_comments(
     builder = {
         "claude": build_target_comments_from_claude,
         "codex": build_target_comments_from_codex,  # 独立实现，非别名
+        "codereview": build_target_comments_from_codereview,  # 独立实现，非别名
     }.get(reviewer, build_target_comments_from_ocr)
     return builder(result)
 
@@ -247,6 +277,12 @@ def _extract_usage_from_result(
         output_tokens = token_usage.get("output_tokens", 0) or 0
     elif reviewer == "codex":
         token_usage = data.get("token_usage") or {}
+        input_tokens = token_usage.get("input_tokens", 0) or 0
+        output_tokens = token_usage.get("output_tokens", 0) or 0
+    elif reviewer == "codereview":
+        # codereview 结果把 CLI stdout 存进 review，token_usage 内嵌在 review 里
+        review = data.get("review") or {}
+        token_usage = review.get("token_usage") or {}
         input_tokens = token_usage.get("input_tokens", 0) or 0
         output_tokens = token_usage.get("output_tokens", 0) or 0
     else:
