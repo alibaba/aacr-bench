@@ -128,6 +128,7 @@ def run_review_stage(
     ocr_command: str = "ocr",
     max_tools: int = 30,
     codereview_command: str = "",
+    resume: bool = False,
 ) -> List[Dict[str, Any]]:
     """执行评审阶段：逐样本评审并落盘结果文件，返回每条状态摘要。
 
@@ -192,6 +193,13 @@ def run_review_stage(
         """串行评审同一 repo 的所有样本。"""
         group_summary: List[Dict[str, Any]] = []
         for instance in group:
+            if resume and config.result_path(results_dir, instance.instance_id).exists():
+                log(f"SKIP (result already exists): {instance.instance_id}")
+                group_summary.append(
+                    {"instance_id": instance.instance_id, "status": "skipped"}
+                )
+                on_instance_done(instance.instance_id)  # 跳过样本也占一次进度，保持 196/196
+                continue
             group_summary.append(
                 _review_one_instance(
                     instance=instance,
@@ -342,6 +350,7 @@ def run_pipeline(args) -> int:
             concurrency=args.concurrency,
             ocr_command=args.ocr_command,
             max_tools=args.max_tools,
+            resume=args.resume,
         )
 
     if args.stage in ("all", "eval"):
@@ -415,6 +424,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="只处理标准数据顺序的前 N 条样本",
+    )
+    run_parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="跳过已存在结果文件（failed/error 未落盘会被补跑，ok 已落盘的保留，避免重跑重花 token）",
     )
     run_parser.add_argument(
         "--ocr-command",

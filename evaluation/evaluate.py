@@ -182,9 +182,10 @@ def build_target_comments_from_ocr(result: Dict[str, Any]) -> List[Dict[str, Any
 
 
 def build_target_comments_from_codereview(result: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """codereview 结果 review.findings -> 待评测评论；`line` 作为起始=终止。
+    """codereview 结果 review.findings -> 待评测评论。
 
-    codereview CLI 的 findings 用 `line`（新侧行号）单值定位，与 Claude 同构。
+    codereview CLI 现在与 OCR 同构：`start_line`/`end_line` 为锚定命中块区间（新侧），
+    按区间参与匹配（对齐 OCR 的 start/end 处理）；`line` 为兼容兜底的单点。
     """
     review = result.get("review")
     if not isinstance(review, dict):
@@ -196,7 +197,13 @@ def build_target_comments_from_codereview(result: Dict[str, Any]) -> List[Dict[s
         note = (finding.get("content") or "").strip()
         if not note:
             continue
-        line_range = _normalize_line_range(finding.get("line"), finding.get("line"))
+        start = finding.get("start_line")
+        if start is None:
+            start = finding.get("line")
+        end = finding.get("end_line")
+        if end is None:
+            end = finding.get("line")
+        line_range = _normalize_line_range(start, end)
         comments.append(
             {
                 "note": note,
@@ -280,9 +287,13 @@ def _extract_usage_from_result(
         input_tokens = token_usage.get("input_tokens", 0) or 0
         output_tokens = token_usage.get("output_tokens", 0) or 0
     elif reviewer == "codereview":
-        # codereview 结果把 CLI stdout 存进 review，token_usage 内嵌在 review 里
+        # codereview 结果把 CLI stdout 存进 review，token_usage 内嵌在 review 里。
+        # 错误/异常结果里 review 可能是字符串或空，一律归一为空 dict 再读。
         review = data.get("review") or {}
+        if not isinstance(review, dict):
+            review = {}
         token_usage = review.get("token_usage") or {}
+        token_usage = token_usage if isinstance(token_usage, dict) else {}
         input_tokens = token_usage.get("input_tokens", 0) or 0
         output_tokens = token_usage.get("output_tokens", 0) or 0
     else:
