@@ -105,16 +105,9 @@ def run_codereview_review(
     env["PYTHONIOENCODING"] = "utf-8"
     log(f"$ {' '.join(args)}  (cwd={repo_path})")
     log(f"cache-dir: {cache_dir}")
-    return subprocess.run(
-        args,
-        cwd=str(repo_path),
-        timeout=process_timeout,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        env=env,
-    )
+    # 复用 repo_utils.run_command：它用文件重定向捕获（非 PIPE）+ 超时 taskkill /T 杀整棵树，
+    # 规避 Windows 下 uv->python 孙进程持有 PIPE 导致 communicate 永久阻塞的死等。
+    return run_command(args, cwd=repo_path, timeout_seconds=process_timeout, env=env)
 
 
 def save_result(
@@ -132,7 +125,17 @@ def save_result(
         try:
             review_output = json.loads(review_output)
         except json.JSONDecodeError:
-            # CLI 在输出 JSON 前报错时可能非 JSON，保留原始文本供排查
+            # CLI 在输出 JSON 前可能混入第三方横幅（如 litellm 异常提示）。契约是
+            # 最后一行恒为一个完整 JSON 对象（成功或 error），倒序找第一行可解析的。
+            for line in reversed(review_output.splitlines()):
+                line = line.strip()
+                if line.startswith("{") and line.endswith("}"):
+                    try:
+                        review_output = json.loads(line)
+                        break
+                    except json.JSONDecodeError:
+                        continue
+            # 仍非 JSON 时保留原始文本供排查
             pass
 
     payload = {
