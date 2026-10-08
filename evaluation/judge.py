@@ -46,6 +46,22 @@ def _get_llm_client():
     return _llm_client
 
 
+def parse_verdict(result_text: str) -> bool:
+    """把判官回答解析成布尔判定（纯函数，离线可测）。
+
+    判官被要求只回一个词，但仍兜底历史/跑偏的长回答：**按单词边界**取最后一个判定词，
+    没有独立判定词时才退回结论性措辞的关键词。
+
+    不要用子串匹配：旧实现是 `"no" not in text.split("yes")[0]`，而 `nodes`/`minor`/`not`
+    都含子串 `no`，导致判官明明回答 yes 也被判成 no（ragflow 样本 OCR 语义 0.0 的根因）。
+    """
+    text = (result_text or "").strip().lower()
+    verdicts = re.findall(r"\b(yes|no)\b", text)
+    if verdicts:
+        return verdicts[-1] == "yes"
+    return any(k in text for k in ("similar", "same", "identical", "equivalent"))
+
+
 def _mock_semantic_match(reference_note: str, generated_note: str) -> bool:
     """本地近似语义匹配：综合序列相似度与词汇重叠度，不依赖外部 LLM。"""
     sequence_ratio = difflib.SequenceMatcher(
@@ -71,6 +87,16 @@ async def match_semantic(reference_note: str, generated_note: str) -> Dict[str, 
         is_similar = _mock_semantic_match(reference_note, generated_note)
         return {"is_similar": is_similar, "reason": f"[mock] matched={is_similar}"}
 
+    # 输出契约（JUDGE_STRICT_VERDICT=1 时启用）：只回一个词。默认关闭——实测严格契约会把
+    # 一部分判词从 no 翻成 yes（8 对夹具里 2 对），属判定口径变化而非纯解析修复，故设为开关，
+    # 由评测方决定是否统一重判（见 .bench/judge_parse_regression.py）。
+    strict = (os.getenv("JUDGE_STRICT_VERDICT") or "").strip() == "1"
+    reply_contract = (
+        "-Output-\n"
+        'Answer with exactly one word, "yes" or "no". Do not explain or add anything else.\n\n'
+        if strict
+        else ""
+    )
     prompt = (
         "-Role-\n"
         "You are an expert code reviewer assistant specialized in analyzing and "
@@ -87,6 +113,7 @@ async def match_semantic(reference_note: str, generated_note: str) -> Dict[str, 
         "suggestion. Ignore differences in wording, tone, or formatting—focus "
         "solely on semantic equivalence of the underlying issue. If the core intent and "
         'technical substance are identical, answer "yes"; otherwise, answer "no".\n\n'
+        f"{reply_contract}"
         "Your answer:"
     )
 
@@ -94,20 +121,13 @@ async def match_semantic(reference_note: str, generated_note: str) -> Dict[str, 
         response = await _get_llm_client().chat.completions.create(
             model=os.getenv(config.JUDGE_MODEL_VAR, "multiline_judge_model"),
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
+            temperature=0,  # 判定要可复现：0.7 下同一对文本会给出不同结论（8 对夹具里 2 对受影响）
             max_tokens=40000,
             top_p=0.95,
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
         result_text = response.choices[0].message.content.strip().lower()
-        is_similar = (
-            "yes" in result_text
-            or "similar" in result_text
-            or "same" in result_text
-            or "identical" in result_text
-            or "equivalent" in result_text
-        ) and ("no" not in result_text.split("yes")[0] if "yes" in result_text else True)
-        return {"is_similar": is_similar, "reason": result_text}
+        return {"is_similar": parse_verdict(result_text), "reason": result_text}
     except Exception as error:  # noqa: BLE001 - 单条判定失败不应中断整体评测
         logging.error("裁判模型调用失败: %s", error)
         return {"is_similar": False, "reason": f"评估过程出错: {error}"}
