@@ -1,4 +1,11 @@
-# Python
+# ─────────────────────────────────────────────────────────────────────────────
+# aacr-bench 忽略规则
+#   · 通用：Python 产物 / 虚拟环境 / 测试与类型缓存 / IDE / OS / 密钥
+#   · 本地新增：评测运行产物（各评审器仓库克隆缓存、评审器 home 目录）
+#   · evaluation/ 框架自带的细则仍在 evaluation/.gitignore，两者叠加生效
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -20,24 +27,43 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# ── 虚拟环境 / 依赖锁 ────────────────────────────────────────────────────────
 .venv/
 venv/
 ENV/
 env/
-
-# UV
 .uv/
 uv.lock
 
-# IDEs
+# ── 测试 / 类型 / 覆盖率缓存 ─────────────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# ── IDE / 编辑器 / 操作系统垃圾 ──────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+*.orig
+*.rej
+*.bak
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
 
-# Project specific
+# ── 密钥（.env.example 模板除外）─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── 上游“项目特定”条目（保持原样）────────────────────────────────────────────
 repos/
 dataset/pr_comments.json
 *.parquet
@@ -46,9 +72,16 @@ output/
 scripts/
 logs/
 
-# Environment variables
-.env
+# ── 本地评测运行产物（体积大 / 可重建，不提交）──────────────────────────────
+# 各评审器的仓库克隆缓存：repo/、repo_ocr/、repo_codereview/、repo_claude2/ …
+evaluation/repo*/
 
-# OS
-.DS_Store
-Thumbs.db
+# codereview-ai agent 的 bare-clone 缓存
+evaluation/.codereview_cache/
+
+# Claude Code 评审器的隔离配置目录（会话记录、遥测、备份，无有用产物）
+evaluation/.claude-*-home/
+
+# 评审过程中可能残留的中间文件
+*.partial.json
+retry_exhausted.jsonl
