@@ -55,6 +55,7 @@ from judge import (  # noqa: E402
     USE_MOCK_LLM,
     compute_cr_statistics,
     evaluate_comments,
+    judge_failure_count,
     print_llm_request_statistics,
 )
 
@@ -337,6 +338,7 @@ def _compute_summary(stats: Dict[str, Any]) -> Dict[str, Any]:
         "generated_notes": generated,
         "matched_line_notes": stats["matched_line_notes"],
         "matched_semantic_notes": stats["matched_semantic_notes"],
+        "judge_failures": judge_failure_count(),  # >0 说明有判定被网络抖动吞成「否」，命中数偏低
         "semantic_match_rate": sem_p,
         "line_match_rate": line_p,
         "semantic_recall_rate": sem_r,
@@ -483,6 +485,8 @@ def print_summary(reviewer: str, result_data: Dict[str, Any]) -> None:
     print(f"总 token:        {summary.get('total_tokens', 0):,}")
     print(f"平均输入 token:  {summary.get('avg_input_tokens', 0):,}")
     print(f"平均输出 token:  {summary.get('avg_output_tokens', 0):,}")
+    print(f"判官调用失败:    {summary.get('judge_failures', 0)}"
+          "（>0 = 有判定被网络抖动吞成「否」，命中数偏低）")
     print("=" * 56)
 
 
