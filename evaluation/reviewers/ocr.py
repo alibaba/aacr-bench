@@ -117,7 +117,7 @@ def review_instance(
     repo_dir: Path,
     results_dir: Path,
     output_format: str = "json",
-    concurrency: int = 8,
+    concurrency: int = 2,  # ocr.cmd 内部 agentic worker 池；8→2 降内存、减单点崩/管道残留
     timeout_minutes: int = 30,
     preview: bool = False,
     ocr_command: str = "ocr",

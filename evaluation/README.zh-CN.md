@@ -18,7 +18,8 @@ evaluation/
 ├── reviewers/
 │   ├── ocr.py             # OCR（OpenCodeReview）评审器
 │   ├── claude.py          # Claude Code 评审器（含 MCP 增量上报 + 多级兜底）
-│   └── codex.py           # Codex 评审器（MCP 增量上报 + JSONL 兜底，与 Claude 同构）
+│   ├── codex.py           # Codex 评审器（MCP 增量上报 + JSONL 兜底，与 Claude 同构）
+│   └── codereview.py      # codereview-ai 评审器（外壳调用其无头 CLI）
 ├── mcp_finding_server.py        # Claude 评审用的 stdio MCP findings server
 ├── mcp_codex_finding_server.py  # Codex 评审专用（finding schema 与 Claude 版不同）
 ├── judge.py               # 评测核心：四阶段匹配 + 指标统计 + 语义判定（LLM/Mock）
@@ -132,6 +133,7 @@ set -a && source .env && set +a
 | OCR 评审 | `OCR_LLM_URL` / `OCR_LLM_TOKEN` / `OCR_LLM_MODEL` / `OCR_USE_ANTHROPIC` |
 | Claude 评审 | `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL` |
 | Codex 评审 | `CODEX_API_KEY`（必填）/ `CODEX_MODEL`（可选）/ `CODEX_GATEWAY_URL`（可选） |
+| codereview-ai 评审 | `CODEREVIEW_COMMAND`（必填）/ `CODEREVIEW_CACHE_DIR`（可选）；LLM 由 codereview-ai 自读 `CR_LLM_MODEL` 等 |
 | 评测裁判（Judge） | `JUDGE_BASE_URL` / `JUDGE_API_KEY` / `JUDGE_MODEL` / `JUDGE_USE_MOCK` |
 
 > **Codex 配置写入临时 config.toml**：pipeline 会在 review 阶段开始时把
@@ -193,6 +195,9 @@ python -m pipeline run --stage all --reviewer claude --dataset data/aacr_bench.j
 
 # Codex 评审器，跑前 2 条
 python -m pipeline run --stage all --reviewer codex --dataset data/aacr_bench.jsonl --limit 2 --concurrency 1 --run-id baseline
+
+# codereview-ai 评审器（经 CODEREVIEW_COMMAND 外壳调用其无头 CLI），跑前 2 条
+python -m pipeline run --stage all --reviewer codereview --dataset data/aacr_bench.jsonl --limit 2 --concurrency 1 --run-id baseline
 ```
 
 ---
@@ -202,12 +207,12 @@ python -m pipeline run --stage all --reviewer codex --dataset data/aacr_bench.js
 > 在 `evaluation/` 目录内执行（已激活 venv）。
 
 ```
-python -m pipeline run --reviewer {ocr|claude|codex} --dataset <标准JSONL> [options]
+python -m pipeline run --reviewer {ocr|claude|codex|codereview} --dataset <标准JSONL> [options]
 ```
 
 | 参数 | 默认值 | 说明 |
 | ---- | ------ | ---- |
-| `--reviewer` | （必填） | 评审器：`ocr` / `claude` / `codex` |
+| `--reviewer` | （必填） | 评审器：`ocr` / `claude` / `codex` / `codereview` |
 | `--dataset` | （必填） | 标准格式数据集路径，如 `data/aacr_bench.jsonl` |
 | `--stage` | `all` | `all`（评审+评测）/ `review`（仅评审）/ `eval`（仅评测） |
 | `--repo-dir` | `repo/` | 仓库 clone 目录（缓存复用） |
@@ -277,7 +282,7 @@ python -m pipeline run --stage eval --reviewer claude --dataset data/aacr_bench.
 评审过程带**进度条**（已完成 / 总数 + 实时速率 + ETA），可用于预估总耗时；
 多 repo 并发时进度条线程安全地汇总推进（并发机制见上方「并发评审」）。
 
-**工作区清理（三个评审器统一）**：评审**前后**都执行 `git reset --hard && git clean -fdx`
+**工作区清理（各评审器统一）**：评审**前后**都执行 `git reset --hard && git clean -fdx`
 清理工作区（评审前清理由 `checkout_commit` 内置保证，评审后由各评审器在落盘结果后调用
 `clean_worktree`）。避免评审器在仓库里留下的临时文件 / 改动污染下一次 checkout。
 
@@ -298,6 +303,11 @@ python -m pipeline run --stage eval --reviewer claude --dataset data/aacr_bench.
      最终取两者中 finding **数量较多**的一方（平局优先 MCP），`review_output_source`
      标记为 `mcp_stream` 或 `jsonl_fallback`。模型三件套与 MCP 配置全部写进临时
      `$CODEX_HOME/config.toml`（方案 D），通过 `CODEX_HOME=<tmp>` 重定向加载。
+- **codereview-ai**：`CODEREVIEW_COMMAND review --repo <aacr工作区> --base <base> --head <head>`，
+  外壳调用 codereview-ai 的无头 CLI（OCR 式契约）。CLI 把 codereview-ai 的 agentic
+  审查 findings 打成 JSON 打到 stdout，adapter 存进结果文件 `review.findings[]`；
+  LLM 配置由 codereview-ai 自读 `CR_LLM_*`（经父进程继承），`review` 里 `line` 作为
+  单点起始=终止参与评测。
 
 ### 执行评测（evaluate.py + judge.py）
 
@@ -332,7 +342,7 @@ failure scenario + 建议修复）。Codex 的 `severity` 字段仅存档，不�
    运行转换：`python -m converters.<key> --validate`
 
 3. **跑流水线**：
-   `python -m pipeline run --stage all --reviewer <ocr|claude|codex> --dataset data/<key>.jsonl`
+   `python -m pipeline run --stage all --reviewer <ocr|claude|codex|codereview> --dataset data/<key>.jsonl`
 4. **看指标**：结果在 `metrics/<key>/<reviewer>/<run_id>/metrics_<reviewer>_<时间戳>.json`，控制台也会打印汇总。
 
 > **内置转换器参考**：AACR-Bench 读**整个 JSON 数组**、需从 `githubPrUrl` 正则解析出 `owner/name`，

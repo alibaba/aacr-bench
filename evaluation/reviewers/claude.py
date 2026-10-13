@@ -41,8 +41,16 @@ _EMPTY_REVIEW_PATTERNS = [
 ]
 
 
+# claude 可执行入口：Windows 下 npm shim 是 claude.cmd，CreateProcess 对裸名"claude"
+# 不会自动加 .cmd 扩展名，subprocess 会抛 FileNotFoundError。允许用环境变量
+# CLAUDE_COMMAND 注入带扩展名的完整路径（如 C:/.../claude.cmd），缺省退回"claude"，
+# 语义与 CODEREVIEW_COMMAND 一致。
+def _claude_command() -> str:
+    return os.environ.get("CLAUDE_COMMAND", "claude")
+
+
 def ensure_claude_installed() -> None:
-    result = run_command(["claude", "--version"])
+    result = run_command([_claude_command(), "--version"])
     if result.returncode != 0:
         raise SystemExit(
             "claude CLI not found. Install Claude Code, e.g.: npm i -g @anthropic-ai/claude-code"
@@ -177,7 +185,7 @@ def run_claude_review(
     settings_path = _write_temp_settings(hook_settings)
 
     command = [
-        "claude",
+        _claude_command(),
         "-p",
         slash_command,
         "--add-dir", str(repo_path),
@@ -188,29 +196,28 @@ def run_claude_review(
         "--append-system-prompt", findings_prompt,
         "--settings", settings_path,
     ]
+    # 显式 --model：settings.json 的 env 块（ANTHROPIC_MODEL 等）会覆盖进程环境变量，
+    # CLI 标志优先级最高，保证每轮 run 实际用到 ANTHROPIC_MODEL 指定的模型。
+    model_override = claude_env.get(config.CLAUDE_MODEL_VAR, "").strip()
+    if model_override:
+        command += ["--model", model_override]
 
     process_timeout = timeout_minutes * 60 + 60
     environment = os.environ.copy()
     environment.update(claude_env)
     log(f"$ claude -p '/code-review {review_target}'  (cwd={repo_path})")
     try:
-        return subprocess.run(
+        # run_command 内部用临时文件捕获 + 超时杀整棵树（claude.cmd 的 node 孙进程
+        # 持有管道时，subprocess.run(timeout) 的二次 communicate 会永久挂死）。
+        result = run_command(
             command,
-            cwd=str(repo_path),
-            timeout=process_timeout,
-            capture_output=True,
-            text=True,
-            check=False,
+            cwd=repo_path,
+            timeout_seconds=process_timeout,
             env=environment,
         )
-    except subprocess.TimeoutExpired as timeout_error:
-        log(f"TIMEOUT: claude process exceeded {process_timeout}s — treating as failed")
-        return subprocess.CompletedProcess(
-            args=command,
-            returncode=-1,
-            stdout=timeout_error.stdout or "",
-            stderr=f"Process timed out after {process_timeout} seconds",
-        )
+        if result.returncode == -9:
+            result.stderr = (result.stderr or "") + f"\n[claude] timed out after {process_timeout}s"
+        return result
     finally:
         try:
             os.unlink(settings_path)
@@ -226,21 +233,53 @@ def looks_like_empty_review(review_text: str) -> bool:
     return any(re.search(pattern, lowered, re.MULTILINE) for pattern in _EMPTY_REVIEW_PATTERNS)
 
 
-def extract_findings_from_result(result_text: str) -> Any:
-    """从最终文本解析 findings：直接 JSON -> 空评审 -> 原始文本兜底。"""
-    fence_match = re.search(r"```(?:json)?\s*(.*?)\s*```", result_text, re.DOTALL)
-    json_text = fence_match.group(1) if fence_match else result_text
+_FENCE_JSON_RE = re.compile(r"```json\s*(.*?)\s*```", re.DOTALL | re.IGNORECASE)
+_FENCE_ANY_RE = re.compile(r"```[a-zA-Z0-9_+-]*\s*(.*?)\s*```", re.DOTALL)
+
+
+def _findings_from_json(text: str) -> Optional[List[Dict[str, Any]]]:
+    """把一段文本解析成 findings 列表：直接数组，或 {findings|comments|issues: [...]}。
+
+    解析失败/形状不符返回 None（调用方继续尝试下一候选文本）。
+    """
     try:
-        parsed = json.loads(json_text)
-        count = len(parsed) if isinstance(parsed, list) else "?"
-        log(f"Fallback level 1: parsed {count} finding(s) directly from stdout JSON")
-        return parsed
+        parsed = json.loads(text.strip())
     except json.JSONDecodeError:
-        if looks_like_empty_review(result_text):
-            log("Fallback: review text explicitly reports no findings — treating as empty")
-            return []
-        log("Fallback level 2 (WORST CASE): storing raw text — needs manual review / rerun")
-        return result_text
+        return None
+    if isinstance(parsed, list):
+        return parsed
+    if isinstance(parsed, dict):
+        for key in ("findings", "comments", "issues"):
+            value = parsed.get(key)
+            if isinstance(value, list):
+                return value
+    return None
+
+
+def extract_findings_from_result(result_text: str) -> Any:
+    """从最终文本解析 findings：json 围栏 → 其它围栏 → 全文（均倒序）→ 空评审 → 原文兜底。
+
+    模型常在正文里**先贴被审 diff**（```php / ```python）再贴结论（```json）——只认第一个
+    围栏会把 diff 当结果，JSON 解析失败后退化成原文，findings 静默记 0（实测
+    deepseek-v4.1-flash 输出「prose + ```php + ```json」即命中此坑）。故结论块从后往前试，
+    并对全文兜底；只有都解析不出才判定空评审/原文。
+    """
+    candidate_groups = [
+        _FENCE_JSON_RE.findall(result_text),   # 显式标注 json 的块优先
+        _FENCE_ANY_RE.findall(result_text),    # 其余围栏（含无标注）
+        [result_text],                          # 全文兜底（纯 JSON 输出）
+    ]
+    for group in candidate_groups:
+        for json_text in reversed(group):  # 结论块通常在正文之后 → 从后往前
+            findings = _findings_from_json(json_text)
+            if findings is not None:
+                log(f"Fallback level 1: parsed {len(findings)} finding(s) from stdout JSON")
+                return findings
+    if looks_like_empty_review(result_text):
+        log("Fallback: review text explicitly reports no findings — treating as empty")
+        return []
+    log("Fallback level 2 (WORST CASE): storing raw text — needs manual review / rerun")
+    return result_text
 
 
 def _extract_token_usage(envelope: Dict[str, Any]) -> Dict[str, Any]:

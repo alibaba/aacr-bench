@@ -14,6 +14,7 @@ JUDGE_USE_MOCK），本模块直接读取，不再经过中间映射：
 from __future__ import annotations
 
 import difflib
+import asyncio
 import logging
 import os
 import re
@@ -29,9 +30,36 @@ USE_MOCK_LLM = (
 
 # 语义匹配请求计数（含 Mock 与 LLM）
 llm_request_count = 0
+#: 判官调用重试后仍失败的次数（evaluate 会写进 metrics.judge_failures）。
+#: 这些判定按 False 计入，因此大于 0 说明命中数被低估。
+llm_failure_count = 0
+#: 判官调用重试次数与退避基数（秒）。一次网络抖动原本会静默变成「否」。
+_JUDGE_MAX_ATTEMPTS = 3
+_JUDGE_RETRY_BACKOFF_SECONDS = 2.0
 
 # LLM 客户端延迟初始化，避免 Mock 模式下强依赖网络配置
 _llm_client = None
+
+
+def _parse_extra_headers(raw: str) -> Dict[str, str]:
+    """解析 `JUDGE_EXTRA_HEADERS`：`key=value,key2=value2`（也接受 `key: value`）。
+
+    OpenAI 兼容网关常要求附加路由头（如 opencode go 的 `x-opencode-session`），
+    而 openai SDK 不读环境变量，只能显式传 default_headers。
+    """
+    headers: Dict[str, str] = {}
+    for part in (raw or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        for sep in ("=", ":"):
+            if sep in part:
+                name, _, value = part.partition(sep)
+                name, value = name.strip(), value.strip()
+                if name:
+                    headers[name] = value
+                break
+    return headers
 
 
 def _get_llm_client():
@@ -42,6 +70,9 @@ def _get_llm_client():
         _llm_client = AsyncOpenAI(
             base_url=os.getenv(config.JUDGE_BASE_URL_VAR),
             api_key=os.getenv(config.JUDGE_API_KEY_VAR),
+            default_headers=_parse_extra_headers(
+                os.getenv(config.JUDGE_EXTRA_HEADERS_VAR, "")
+            ) or None,
         )
     return _llm_client
 
@@ -49,12 +80,11 @@ def _get_llm_client():
 def parse_verdict(result_text: str) -> bool:
     """把判官回答解析成布尔判定（纯函数，离线可测）。
 
-    按**单词边界**取最后一个判定词，没有独立判定词时才退回结论性措辞的关键词。
+    判官被要求只回一个词，但仍兜底历史/跑偏的长回答：**按单词边界**取最后一个判定词，
+    没有独立判定词时才退回结论性措辞的关键词。
 
     不要用子串匹配：旧实现是 `"no" not in text.split("yes")[0]`，而 `nodes`/`minor`/`not`
-    都含子串 `no`，导致判官明明回答 yes 也被判成 no（aacr-bench ragflow 样本上
-    OCR 语义 P/R/F1 全 0 的根因：判词 "both comments identify the same underlying bug …
-    yes" 因为句中 `merging_nodes` 被判成 no）。
+    都含子串 `no`，导致判官明明回答 yes 也被判成 no（ragflow 样本 OCR 语义 0.0 的根因）。
     """
     text = (result_text or "").strip().lower()
     verdicts = re.findall(r"\b(yes|no)\b", text)
@@ -88,6 +118,16 @@ async def match_semantic(reference_note: str, generated_note: str) -> Dict[str, 
         is_similar = _mock_semantic_match(reference_note, generated_note)
         return {"is_similar": is_similar, "reason": f"[mock] matched={is_similar}"}
 
+    # 输出契约（JUDGE_STRICT_VERDICT=1 时启用）：只回一个词。默认关闭——实测严格契约会把
+    # 一部分判词从 no 翻成 yes（8 对夹具里 2 对），属判定口径变化而非纯解析修复，故设为开关，
+    # 由评测方决定是否统一重判（见 .bench/judge_parse_regression.py）。
+    strict = (os.getenv("JUDGE_STRICT_VERDICT") or "").strip() == "1"
+    reply_contract = (
+        "-Output-\n"
+        'Answer with exactly one word, "yes" or "no". Do not explain or add anything else.\n\n'
+        if strict
+        else ""
+    )
     prompt = (
         "-Role-\n"
         "You are an expert code reviewer assistant specialized in analyzing and "
@@ -104,23 +144,42 @@ async def match_semantic(reference_note: str, generated_note: str) -> Dict[str, 
         "suggestion. Ignore differences in wording, tone, or formatting—focus "
         "solely on semantic equivalence of the underlying issue. If the core intent and "
         'technical substance are identical, answer "yes"; otherwise, answer "no".\n\n'
+        f"{reply_contract}"
         "Your answer:"
     )
 
-    try:
-        response = await _get_llm_client().chat.completions.create(
-            model=os.getenv(config.JUDGE_MODEL_VAR, "multiline_judge_model"),
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,  # 判定要可复现：0.7 下同一对文本会给出不同结论（8 对夹具里 2 对受影响）
-            max_tokens=40000,
-            top_p=0.95,
-            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
-        )
-        result_text = response.choices[0].message.content.strip().lower()
-        return {"is_similar": parse_verdict(result_text), "reason": result_text}
-    except Exception as error:  # noqa: BLE001 - 单条判定失败不应中断整体评测
-        logging.error("裁判模型调用失败: %s", error)
-        return {"is_similar": False, "reason": f"评估过程出错: {error}"}
+    # 判官调用带重试：一次网络抖动会让 match_semantic 返回 False，把本该命中的参考
+    # 静默算成漏报（实测同一批结果两次评测差 1 条命中，日志里就有一次 Connection error）。
+    response = None
+    last_error: Exception | None = None
+    for attempt in range(1, _JUDGE_MAX_ATTEMPTS + 1):
+        try:
+            response = await _get_llm_client().chat.completions.create(
+                model=os.getenv(config.JUDGE_MODEL_VAR, "multiline_judge_model"),
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,  # 判定要可复现：0.7 下同一对文本会给出不同结论（8 对夹具里 2 对受影响）
+                max_tokens=40000,
+                top_p=0.95,
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            )
+            break
+        except Exception as error:  # noqa: BLE001 - 单条判定失败不应中断整体评测
+            last_error = error
+            if attempt < _JUDGE_MAX_ATTEMPTS:
+                logging.warning("裁判模型调用失败（第 %d/%d 次，重试）：%s",
+                                attempt, _JUDGE_MAX_ATTEMPTS, error)
+                await asyncio.sleep(_JUDGE_RETRY_BACKOFF_SECONDS * attempt)
+    if response is None:
+        # 重试仍失败：记一次失败（evaluate 会把 judge_failures 写进 metrics）。
+        # 这里必须返回 False——评测不能中断；但失败次数必须可见，否则「网络抖动」
+        # 会被静默当成判官的「否」，把本该命中的参考算成漏报。
+        global llm_failure_count
+        llm_failure_count += 1
+        logging.error("裁判模型调用失败（已重试 %d 次）: %s", _JUDGE_MAX_ATTEMPTS, last_error)
+        return {"is_similar": False,
+                "reason": f"评估过程出错（重试 {_JUDGE_MAX_ATTEMPTS} 次仍失败）: {last_error}"}
+    result_text = response.choices[0].message.content.strip().lower()
+    return {"is_similar": parse_verdict(result_text), "reason": result_text}
 
 
 def diff_location_is_same(
@@ -266,6 +325,15 @@ def compute_cr_statistics(
     }
 
 
+def judge_failure_count() -> int:
+    """判官调用（重试后仍）失败的次数。
+
+    供 evaluate 写进 metrics.judge_failures。必须是函数而非 import 常量——
+    `from judge import llm_failure_count` 拿的是导入那一刻的快照（恒为 0）。
+    """
+    return llm_failure_count
+
+
 def print_llm_request_statistics() -> None:
     """打印语义匹配请求统计信息。"""
     print("\n" + "=" * 50)
@@ -273,4 +341,5 @@ def print_llm_request_statistics() -> None:
     print("=" * 50)
     print(f"模式: {'Mock（本地相似度）' if USE_MOCK_LLM else 'LLM（真实裁判模型）'}")
     print(f"总请求数: {llm_request_count}")
+    print(f"调用失败（按「否」计入）: {llm_failure_count}")
     print("=" * 50 + "\n")

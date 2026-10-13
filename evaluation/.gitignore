@@ -26,3 +26,6 @@ metrics/
 # Python 缓存
 __pycache__/
 *.pyc
+
+# codereview-ai agent bare-clone 缓存（运行产物）
+.codereview_cache/

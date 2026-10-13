@@ -26,6 +26,7 @@ import evaluate
 from repo_utils import RepoError, log
 from reviewers import claude as claude_reviewer
 from reviewers import codex as codex_reviewer
+from reviewers import codereview as codereview_reviewer
 from reviewers import ocr as ocr_reviewer
 from schema import ReviewInstance, load_instances
 
@@ -60,6 +61,7 @@ def _review_one_instance(
     ocr_command: str = "ocr",
     max_tools: int = 30,
     codex_home: Optional[Path] = None,
+    codereview_command: str = "",
     on_done: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, Any]:
     """评审单条样本，返回状态摘要；RepoError 转为 error 状态而非中断。
@@ -90,6 +92,15 @@ def _review_one_instance(
                 timeout_minutes=timeout_minutes,
                 preview=preview,
             )
+        if reviewer == "codereview":
+            return codereview_reviewer.review_instance(
+                instance=instance,
+                repo_dir=repo_dir,
+                results_dir=results_dir,
+                codereview_command=codereview_command,
+                timeout_minutes=timeout_minutes,
+                preview=preview,
+            )
         return claude_reviewer.review_instance(
             instance=instance,
             repo_dir=repo_dir,
@@ -116,6 +127,8 @@ def run_review_stage(
     concurrency: int = 1,
     ocr_command: str = "ocr",
     max_tools: int = 30,
+    codereview_command: str = "",
+    resume: bool = False,
 ) -> List[Dict[str, Any]]:
     """执行评审阶段：逐样本评审并落盘结果文件，返回每条状态摘要。
 
@@ -146,6 +159,11 @@ def run_review_stage(
             model_desc = reviewer_env.get(config.CODEX_MODEL_VAR, "(codex default)")
             log(f"Using model={model_desc}")
             log(f"CODEX_HOME = {codex_home}")
+    elif reviewer == "codereview":
+        codereview_command = codereview_reviewer.resolve_command(preview=preview)
+        codereview_reviewer.check_env(preview)
+        if not preview:
+            codereview_reviewer.ensure_codereview_installed(codereview_command)
     else:
         raise ValueError(f"未知的 reviewer: {reviewer}")
 
@@ -175,6 +193,13 @@ def run_review_stage(
         """串行评审同一 repo 的所有样本。"""
         group_summary: List[Dict[str, Any]] = []
         for instance in group:
+            if resume and config.result_path(results_dir, instance.instance_id).exists():
+                log(f"SKIP (result already exists): {instance.instance_id}")
+                group_summary.append(
+                    {"instance_id": instance.instance_id, "status": "skipped"}
+                )
+                on_instance_done(instance.instance_id)  # 跳过样本也占一次进度，保持 196/196
+                continue
             group_summary.append(
                 _review_one_instance(
                     instance=instance,
@@ -187,6 +212,7 @@ def run_review_stage(
                     ocr_command=ocr_command,
                     max_tools=max_tools,
                     codex_home=codex_home,
+                    codereview_command=codereview_command,
                     on_done=on_instance_done,
                 )
             )
@@ -324,6 +350,7 @@ def run_pipeline(args) -> int:
             concurrency=args.concurrency,
             ocr_command=args.ocr_command,
             max_tools=args.max_tools,
+            resume=args.resume,
         )
 
     if args.stage in ("all", "eval"):
@@ -363,7 +390,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--reviewer",
-        choices=["ocr", "claude", "codex"],
+        choices=["ocr", "claude", "codex", "codereview"],
         required=True,
         help="使用哪个评审器",
     )
@@ -397,6 +424,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="只处理标准数据顺序的前 N 条样本",
+    )
+    run_parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="跳过已存在结果文件（failed/error 未落盘会被补跑，ok 已落盘的保留，避免重跑重花 token）",
     )
     run_parser.add_argument(
         "--ocr-command",
