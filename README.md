@@ -80,7 +80,7 @@ git clone https://github.com/alibaba/aacr-bench.git
 cd aacr-bench
 ```
 
-The evaluation framework is in the [`evaluation/`](evaluation/) directory, which provides a unified pipeline: **data loading → review execution → evaluation**. It supports three reviewers: **OpenCodeReview (OCR)**, **Claude Code**, and **Codex**. See [`evaluation/README.md`](evaluation/README.md) for detailed setup and usage.
+The evaluation framework is in the [`evaluation/`](evaluation/) directory, which provides a unified pipeline: **data loading → review execution → evaluation**. It supports four reviewers: **OpenCodeReview (OCR)**, **Claude Code**, **Codex**, and **codereview-ai**. See [`evaluation/README.md`](evaluation/README.md) for detailed setup and usage.
 
 ## 📈 Data Overview
 ### Dataset Scale

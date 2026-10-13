@@ -19,7 +19,8 @@ evaluation/
 ├── reviewers/
 │   ├── ocr.py             # OCR (OpenCodeReview) reviewer
 │   ├── claude.py          # Claude Code reviewer (MCP incremental reporting + multi-level fallback)
-│   └── codex.py           # Codex reviewer (MCP incremental reporting + JSONL fallback, isomorphic to Claude)
+│   ├── codex.py           # Codex reviewer (MCP incremental reporting + JSONL fallback, isomorphic to Claude)
+│   └── codereview.py      # codereview-ai reviewer (shells out to its headless CLI)
 ├── mcp_finding_server.py        # Stdio MCP findings server for Claude
 ├── mcp_codex_finding_server.py  # Codex-specific MCP server (different finding schema from Claude)
 ├── judge.py               # Evaluation core: 4-stage matching + metrics + semantic judgment (LLM/Mock)
@@ -136,6 +137,7 @@ The four config groups in `evaluation/.env` each serve a distinct purpose:
 | OCR Review | `OCR_LLM_URL` / `OCR_LLM_TOKEN` / `OCR_LLM_MODEL` / `OCR_USE_ANTHROPIC` |
 | Claude Review | `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL` |
 | Codex Review | `CODEX_API_KEY` (required) / `CODEX_MODEL` (optional) / `CODEX_GATEWAY_URL` (optional) |
+| codereview-ai Review | `CODEREVIEW_COMMAND` (required) / `CODEREVIEW_CACHE_DIR` (optional); LLM read by codereview-ai itself via `CR_LLM_MODEL` etc. |
 | Judge (Evaluation) | `JUDGE_BASE_URL` / `JUDGE_API_KEY` / `JUDGE_MODEL` / `JUDGE_USE_MOCK` |
 
 > **Codex config written to temporary config.toml**: The pipeline writes `CODEX_MODEL` (and
@@ -209,12 +211,12 @@ python -m pipeline run --stage all --reviewer codex --dataset data/aacr_bench.js
 > Run inside `evaluation/` (with venv activated).
 
 ```
-python -m pipeline run --reviewer {ocr|claude|codex} --dataset <standard JSONL> [options]
+python -m pipeline run --reviewer {ocr|claude|codex|codereview} --dataset <standard JSONL> [options]
 ```
 
 | Parameter | Default | Description |
 | --------- | ------- | ----------- |
-| `--reviewer` | (required) | Reviewer: `ocr` / `claude` / `codex` |
+| `--reviewer` | (required) | Reviewer: `ocr` / `claude` / `codex` / `codereview` |
 | `--dataset` | (required) | Standard format dataset path, e.g. `data/aacr_bench.jsonl` |
 | `--stage` | `all` | `all` (review + eval) / `review` (review only) / `eval` (eval only) |
 | `--repo-dir` | `repo/` | Repository clone directory (cached for reuse) |
@@ -287,7 +289,7 @@ For each sample: `clone/fetch` → `checkout head_commit` → invoke reviewer �
 Review progress includes a **progress bar** (completed / total + real-time rate + ETA), useful for
 estimating total runtime. Multi-repo concurrent progress is thread-safe (see "Concurrent Review" above).
 
-**Workspace cleanup (unified across all three reviewers)**: `git reset --hard && git clean -fdx` runs
+**Workspace cleanup (unified across all reviewers)**: `git reset --hard && git clean -fdx` runs
 **before and after** each review (pre-review cleanup is built into `checkout_commit`; post-review cleanup
 is done by each reviewer's `clean_worktree` after saving results). This prevents temporary files or
 changes left by reviewers from polluting the next checkout.
@@ -311,6 +313,11 @@ changes left by reviewers from polluting the next checkout.
      The channel with **more findings** wins (MCP preferred on ties). `review_output_source` is marked
      as `mcp_stream` or `jsonl_fallback`. Model config and MCP settings are written into a temporary
      `$CODEX_HOME/config.toml` (Plan D), loaded via `CODEX_HOME=<tmp>` redirection.
+- **codereview-ai**: `CODEREVIEW_COMMAND review --repo <aacr worktree> --base <base> --head <head>`,
+  shells out to codereview-ai's headless CLI (OCR-style contract). The CLI runs codereview-ai's agentic
+  review over the `base..head` diff and prints findings as JSON to stdout; the adapter stores it in the
+  result file's `review.findings[]`. The LLM config is read by codereview-ai itself from `CR_LLM_*`
+  (inherited from the parent env); each finding's `line` counts as a single-point start=end during matching.
 
 ### Evaluation (evaluate.py + judge.py)
 
@@ -348,7 +355,7 @@ Use the built-in `converters/aacr_bench.py` as a reference example:
    Run conversion: `python -m converters.<key> --validate`
 
 3. **Run the pipeline**:
-   `python -m pipeline run --stage all --reviewer <ocr|claude|codex> --dataset data/<key>.jsonl`
+   `python -m pipeline run --stage all --reviewer <ocr|claude|codex|codereview> --dataset data/<key>.jsonl`
 4. **Check metrics**: Results are in `metrics/<key>/<reviewer>/<run_id>/metrics_<reviewer>_<timestamp>.json`;
    the console also prints a summary.
 

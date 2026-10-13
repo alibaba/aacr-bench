@@ -160,6 +160,17 @@ JUDGE_BASE_URL_VAR = "JUDGE_BASE_URL"
 JUDGE_API_KEY_VAR = "JUDGE_API_KEY"
 JUDGE_MODEL_VAR = "JUDGE_MODEL"
 JUDGE_USE_MOCK_VAR = "JUDGE_USE_MOCK"
+# 判官网关的附加请求头（可选），格式与评审器的 *_EXTRA_HEADERS 一致：
+# `key=value,key2=value2`（也接受 `key: value`）。某些 OpenAI 兼容网关要求额外路由头，
+# 例如 opencode go 必须带 `x-opencode-session`，否则报 MissingSessionID。
+JUDGE_EXTRA_HEADERS_VAR = "JUDGE_EXTRA_HEADERS"
+
+# codereview-ai 评审器（外壳调用 headless CLI）：`CODEREVIEW_COMMAND` 指定如何运行
+# `python -m codereview_ai.bench_review`（LLM/平台配置由 codereview-ai 自读 CR_LLM_*
+# 环境变量，经父进程继承）。`CODEREVIEW_CACHE_DIR` 可选，缺省 evaluation/.codereview_cache。
+CODEREVIEW_COMMAND_VAR = "CODEREVIEW_COMMAND"
+CODEREVIEW_CACHE_DIR_VAR = "CODEREVIEW_CACHE_DIR"
+DEFAULT_CODEREVIEW_CACHE_DIR = EVALUATION_DIR / ".codereview_cache"
 
 
 def safe_id(instance_id: str) -> str:

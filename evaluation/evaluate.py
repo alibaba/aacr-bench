@@ -55,6 +55,7 @@ from judge import (  # noqa: E402
     USE_MOCK_LLM,
     compute_cr_statistics,
     evaluate_comments,
+    judge_failure_count,
     print_llm_request_statistics,
 )
 
@@ -181,6 +182,42 @@ def build_target_comments_from_ocr(result: Dict[str, Any]) -> List[Dict[str, Any
     return comments
 
 
+def build_target_comments_from_codereview(result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """codereview 结果 review.findings -> 待评测评论。
+
+    codereview CLI 现在与 OCR 同构：`start_line`/`end_line` 为锚定命中块区间（新侧），
+    按区间参与匹配（对齐 OCR 的 start/end 处理）；`line` 为兼容兜底的单点。
+    """
+    review = result.get("review")
+    if not isinstance(review, dict):
+        return []
+    comments = []
+    for finding in review.get("findings", []) or []:
+        if not isinstance(finding, dict):
+            continue
+        note = (finding.get("content") or "").strip()
+        if not note:
+            continue
+        start = finding.get("start_line")
+        if start is None:
+            start = finding.get("line")
+        end = finding.get("end_line")
+        if end is None:
+            end = finding.get("line")
+        line_range = _normalize_line_range(start, end)
+        comments.append(
+            {
+                "note": note,
+                "path": finding.get("file", ""),
+                # 与 ocr/claude/codex 一致：评审面向 diff 右侧（新代码），side 硬编码 "right"
+                "side": "right",
+                "from_line": line_range["from_line"],
+                "to_line": line_range["to_line"],
+            }
+        )
+    return comments
+
+
 def load_target_comments(
     results_dir: Path, reviewer: str, instance_id: str
 ) -> Optional[List[Dict[str, Any]]]:
@@ -200,6 +237,7 @@ def load_target_comments(
     builder = {
         "claude": build_target_comments_from_claude,
         "codex": build_target_comments_from_codex,  # 独立实现，非别名
+        "codereview": build_target_comments_from_codereview,  # 独立实现，非别名
     }.get(reviewer, build_target_comments_from_ocr)
     return builder(result)
 
@@ -249,6 +287,16 @@ def _extract_usage_from_result(
         token_usage = data.get("token_usage") or {}
         input_tokens = token_usage.get("input_tokens", 0) or 0
         output_tokens = token_usage.get("output_tokens", 0) or 0
+    elif reviewer == "codereview":
+        # codereview 结果把 CLI stdout 存进 review，token_usage 内嵌在 review 里。
+        # 错误/异常结果里 review 可能是字符串或空，一律归一为空 dict 再读。
+        review = data.get("review") or {}
+        if not isinstance(review, dict):
+            review = {}
+        token_usage = review.get("token_usage") or {}
+        token_usage = token_usage if isinstance(token_usage, dict) else {}
+        input_tokens = token_usage.get("input_tokens", 0) or 0
+        output_tokens = token_usage.get("output_tokens", 0) or 0
     else:
         review = data.get("review") or {}
         summary = review.get("summary") or {}
@@ -290,6 +338,7 @@ def _compute_summary(stats: Dict[str, Any]) -> Dict[str, Any]:
         "generated_notes": generated,
         "matched_line_notes": stats["matched_line_notes"],
         "matched_semantic_notes": stats["matched_semantic_notes"],
+        "judge_failures": judge_failure_count(),  # >0 说明有判定被网络抖动吞成「否」，命中数偏低
         "semantic_match_rate": sem_p,
         "line_match_rate": line_p,
         "semantic_recall_rate": sem_r,
@@ -436,6 +485,8 @@ def print_summary(reviewer: str, result_data: Dict[str, Any]) -> None:
     print(f"总 token:        {summary.get('total_tokens', 0):,}")
     print(f"平均输入 token:  {summary.get('avg_input_tokens', 0):,}")
     print(f"平均输出 token:  {summary.get('avg_output_tokens', 0):,}")
+    print(f"判官调用失败:    {summary.get('judge_failures', 0)}"
+          "（>0 = 有判定被网络抖动吞成「否」，命中数偏低）")
     print("=" * 56)
 
 
