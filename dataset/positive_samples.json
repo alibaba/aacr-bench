@@ -5,6 +5,8 @@
     "source_commit": "0c65673a6fd2421be8fbe613116077120adea068",
     "target_commit": "a050e422e23ce3eaee960b75ceff236b34f369b9",
     "githubPrUrl": "https://github.com/FreeCAD/FreeCAD/pull/19411",
+    "created_at": "2025-02-04T19:03:45Z",
+    "merged_at": "2025-03-03T16:37:21Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -224,6 +226,8 @@
     "source_commit": "17e56f6570a97aa9803b502b23cf27dc8be1da70",
     "target_commit": "eb761fd69cf1fb9c674e385bb1d419814526ba5a",
     "githubPrUrl": "https://github.com/FreeCAD/FreeCAD/pull/21257",
+    "created_at": "2025-05-11T15:43:42Z",
+    "merged_at": "2025-05-29T20:37:54Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -443,6 +447,8 @@
     "source_commit": "ab225f5672cbe45404299437d1613c308b68900b",
     "target_commit": "82fef4a22503dd3affdd39e7120b6f71e9423f86",
     "githubPrUrl": "https://github.com/FreeCAD/FreeCAD/pull/22744",
+    "created_at": "2025-07-25T21:59:16Z",
+    "merged_at": "2025-08-04T16:05:00Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -486,6 +492,8 @@
     "source_commit": "79008331b30d098b2c32e59752e24e0705b350bc",
     "target_commit": "ec3da2e93e3fd8f69f113ca14abf892dfb86c11b",
     "githubPrUrl": "https://github.com/FreeCAD/FreeCAD/pull/20612",
+    "created_at": "2025-04-03T09:15:43Z",
+    "merged_at": "2025-04-07T09:07:52Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -529,6 +537,8 @@
     "source_commit": "abb50a4daa43abee9e6b263dd82e5e876c978c6a",
     "target_commit": "a440ff7e4138c20ed2ac66977a199ebbf295e493",
     "githubPrUrl": "https://github.com/FreeCAD/FreeCAD/pull/18688",
+    "created_at": "2024-12-23T07:52:23Z",
+    "merged_at": "2025-01-13T17:22:20Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -605,6 +615,8 @@
     "source_commit": "730e07db5d2acafe7723eb89c83641375c375bc3",
     "target_commit": "f8cd64328c49510285490dfd9872253ce7a53040",
     "githubPrUrl": "https://github.com/FreeCAD/FreeCAD/pull/22235",
+    "created_at": "2025-06-29T13:48:35Z",
+    "merged_at": "2025-06-30T15:34:53Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -681,6 +693,8 @@
     "source_commit": "16968aa3ee1bc7f2caf4ce592d13066aa8755a80",
     "target_commit": "290bdc79d1ad92669431458a62205d694522586e",
     "githubPrUrl": "https://github.com/FreeCAD/FreeCAD/pull/20336",
+    "created_at": "2025-03-21T04:56:30Z",
+    "merged_at": "2025-03-22T06:15:15Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -779,6 +793,8 @@
     "source_commit": "01241245a1d92a8db69fab0db4c2053b5e1227c1",
     "target_commit": "870d7f5385af5d377994479ce6ad017465bdad3d",
     "githubPrUrl": "https://github.com/FreeCAD/FreeCAD/pull/20825",
+    "created_at": "2025-04-16T13:15:51Z",
+    "merged_at": "2025-04-28T15:29:04Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -1141,6 +1157,8 @@
     "source_commit": "b59cd794274c8c007b2ef16c3a06fecf30c0aef1",
     "target_commit": "39c5968bdc6c0b20d94d4a629cd43eafee1e56d0",
     "githubPrUrl": "https://github.com/FreeCAD/FreeCAD/pull/19977",
+    "created_at": "2025-03-03T22:57:23Z",
+    "merged_at": "2025-03-05T05:20:17Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -1206,6 +1224,8 @@
     "source_commit": "382720b82e4c6c81f7e1cdd3a33272047d7a3642",
     "target_commit": "699b45c086f53858897aa8c688bbedaf570c644f",
     "githubPrUrl": "https://github.com/FreeCAD/FreeCAD/pull/20156",
+    "created_at": "2025-03-13T04:20:58Z",
+    "merged_at": "2025-03-19T09:13:35Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -1392,6 +1412,8 @@
     "source_commit": "f001b8a10ac2206458f7db457a45c9b2853e7bff",
     "target_commit": "e59692501d1a08e7306189fed5c31b02553f7746",
     "githubPrUrl": "https://github.com/FreeCAD/FreeCAD/pull/19426",
+    "created_at": "2025-02-05T13:29:06Z",
+    "merged_at": "2025-02-24T16:43:07Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -1655,6 +1677,8 @@
     "source_commit": "15def0236938e25ec7822755444f4d58c68045be",
     "target_commit": "ae447d3b2a6db00072941e1992a09981b6096061",
     "githubPrUrl": "https://github.com/microsoft/typescript-go/pull/1354",
+    "created_at": "2025-07-03T04:31:48Z",
+    "merged_at": "2025-07-07T22:11:16Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -1687,6 +1711,8 @@
     "source_commit": "bc3195e0f2727d11a48ed9fc61f37a90c9b7deb4",
     "target_commit": "b970689fe86e0b6ef4f5285b18343ddf16b294eb",
     "githubPrUrl": "https://github.com/microsoft/typescript-go/pull/831",
+    "created_at": "2025-04-28T15:21:19Z",
+    "merged_at": "2025-05-13T14:14:01Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -1862,6 +1888,8 @@
     "source_commit": "a9efe52c52001ea5b49d2ae8d7b0fa32ec8339f3",
     "target_commit": "892b4a3f6b701352047ceb019fc0683ab1146bb3",
     "githubPrUrl": "https://github.com/microsoft/typescript-go/pull/1446",
+    "created_at": "2025-07-24T18:19:07Z",
+    "merged_at": "2025-07-29T21:03:43Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -2015,6 +2043,8 @@
     "source_commit": "da4e121142cd3f891785b573a194b9caaaa01d55",
     "target_commit": "1a84d8d5705df98fd1e1f81d9d3115a7a203509d",
     "githubPrUrl": "https://github.com/microsoft/typescript-go/pull/691",
+    "created_at": "2025-03-22T10:33:42Z",
+    "merged_at": "2025-03-23T00:06:07Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -2058,6 +2088,8 @@
     "source_commit": "af2ba7365ad3e2f572ddb95a439b0220eccc06b1",
     "target_commit": "45c0de96a08812aff07974b859bc2327e7fe25ed",
     "githubPrUrl": "https://github.com/microsoft/typescript-go/pull/1000",
+    "created_at": "2025-05-30T21:52:49Z",
+    "merged_at": "2025-06-05T00:05:01Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -2079,6 +2111,8 @@
     "source_commit": "3a3ff237cf7ad91bcdb604271f6135762aed9365",
     "target_commit": "100dbc5127e723c4108efc02a179d9aec5fce32a",
     "githubPrUrl": "https://github.com/microsoft/typescript-go/pull/698",
+    "created_at": "2025-03-24T10:18:17Z",
+    "merged_at": "2025-03-31T17:06:31Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -2155,6 +2189,8 @@
     "source_commit": "2259f56c0786574cbde8624d031e778028352372",
     "target_commit": "ec952ce3b70c87885ed756ffca2bec128f07c51b",
     "githubPrUrl": "https://github.com/PowerShell/PowerShell/pull/24910",
+    "created_at": "2025-01-31T19:34:14Z",
+    "merged_at": "2025-02-18T18:13:36Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -2220,6 +2256,8 @@
     "source_commit": "ce76ae1def6d5b00fff0d855ec01575121268ef3",
     "target_commit": "ea07b93a40f64274505e3a070c1fd91684ff2959",
     "githubPrUrl": "https://github.com/PowerShell/PowerShell/pull/25780",
+    "created_at": "2025-07-24T20:34:35Z",
+    "merged_at": "2025-08-04T23:37:45Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -2274,6 +2312,8 @@
     "source_commit": "71303b41bf89c4bb68dbe1bed12fd2ee1dc0dd41",
     "target_commit": "15267271865f73c996719238425f1604fc2fa205",
     "githubPrUrl": "https://github.com/libsdl-org/SDL/pull/12964",
+    "created_at": "2025-05-06T06:40:09Z",
+    "merged_at": "2025-05-07T02:47:11Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -2361,6 +2401,8 @@
     "source_commit": "ab34ea5a2684766e510de1daf8ae44c41b6af704",
     "target_commit": "96dfef35c4b0b89f2f8d9c2ecc4f5e3a25d3e7a0",
     "githubPrUrl": "https://github.com/libsdl-org/SDL/pull/12718",
+    "created_at": "2025-04-03T08:24:52Z",
+    "merged_at": "2025-04-03T22:00:22Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -2459,6 +2501,8 @@
     "source_commit": "d0300073f685bb1154f7437f3172799d31bfddbe",
     "target_commit": "c1a26ade6db7da96622c9bdca7674ef7094c122f",
     "githubPrUrl": "https://github.com/gofr-dev/gofr/pull/1681",
+    "created_at": "2025-04-28T14:46:59Z",
+    "merged_at": "2025-05-15T10:34:01Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -2524,6 +2568,8 @@
     "source_commit": "ba0316277a22f508ed645951705f53d151552916",
     "target_commit": "49ab39432cf4892ee84569099b8065dfe45fae92",
     "githubPrUrl": "https://github.com/gofr-dev/gofr/pull/1617",
+    "created_at": "2025-03-30T19:23:38Z",
+    "merged_at": "2025-04-12T16:24:21Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -2589,6 +2635,8 @@
     "source_commit": "7f1760b083ea23ffd95fdf83467bdfa21735df81",
     "target_commit": "b9cdcbb2b9fc78499d15d51ffbb7c861592b0efe",
     "githubPrUrl": "https://github.com/gofr-dev/gofr/pull/1325",
+    "created_at": "2024-12-20T11:12:17Z",
+    "merged_at": "2024-12-24T10:30:47Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -2621,6 +2669,8 @@
     "source_commit": "44e3eeb2786ad4d333dc1f528fb104236693d060",
     "target_commit": "dc0b3e630423b72cb9b2f273fdc18a5c11d12984",
     "githubPrUrl": "https://github.com/gofr-dev/gofr/pull/1355",
+    "created_at": "2024-12-31T05:00:32Z",
+    "merged_at": "2025-01-08T12:53:50Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -2697,6 +2747,8 @@
     "source_commit": "c2ab1eb3308afa4f29842f0a982751bf65c059d0",
     "target_commit": "2c0c0997cad66a1ee1e47f95db6a830394157c00",
     "githubPrUrl": "https://github.com/gofr-dev/gofr/pull/1395",
+    "created_at": "2025-01-17T05:54:18Z",
+    "merged_at": "2025-01-23T04:27:32Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -2795,6 +2847,8 @@
     "source_commit": "de79ab765d0d34d78a42ebdd50a21a6f26841b7f",
     "target_commit": "5e284aec0447be34c96a252e959067c8bcd9cd4c",
     "githubPrUrl": "https://github.com/gofr-dev/gofr/pull/1696",
+    "created_at": "2025-05-07T06:48:24Z",
+    "merged_at": "2025-05-14T07:02:21Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -2849,6 +2903,8 @@
     "source_commit": "924d771e18000f4cb223575189daa6d2c6c5a9c1",
     "target_commit": "4936d01872b8719ede33f9a11dc8e898c33d39e4",
     "githubPrUrl": "https://github.com/comfyanonymous/ComfyUI/pull/7952",
+    "created_at": "2025-05-06T01:57:42Z",
+    "merged_at": "2025-05-12T20:29:32Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -2914,6 +2970,8 @@
     "source_commit": "c7b25784b141a298d8ee5f0d830a29da6e8a3d54",
     "target_commit": "4dcd698e489da69294ee01de0350a9a02e3e4b41",
     "githubPrUrl": "https://github.com/comfyanonymous/ComfyUI/pull/8446",
+    "created_at": "2025-06-06T21:35:40Z",
+    "merged_at": "2025-06-13T23:25:59Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -3122,6 +3180,8 @@
     "source_commit": "6c0377f43e7b6ed58d48ae05cff9bc45b52ef5e0",
     "target_commit": "0bb60235132cc72daea81427107a40ba1ccb5ddf",
     "githubPrUrl": "https://github.com/comfyanonymous/ComfyUI/pull/6033",
+    "created_at": "2024-12-13T00:08:41Z",
+    "merged_at": "2024-12-13T00:29:37Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -3209,6 +3269,8 @@
     "source_commit": "a86aaa430183068e2a264495c802c81d05eb350a",
     "target_commit": "cfc312296c0b9f255bba6b4b2789ac7bbc66a7cb",
     "githubPrUrl": "https://github.com/comfyanonymous/ComfyUI/pull/9560",
+    "created_at": "2025-08-26T17:53:49Z",
+    "merged_at": "2025-09-05T18:32:25Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -3285,6 +3347,8 @@
     "source_commit": "832e3f5ca3c357e527fdf811502357bd2798425e",
     "target_commit": "b55c2247654476fbc744e572ba7a834fd9378745",
     "githubPrUrl": "https://github.com/comfyanonymous/ComfyUI/pull/6542",
+    "created_at": "2025-01-21T00:25:44Z",
+    "merged_at": "2025-02-11T22:11:32Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -3317,6 +3381,8 @@
     "source_commit": "de413e2112ff1ae80599f145b101354a1476976c",
     "target_commit": "b55b9e97f6d0f5829e4d8fc364949e72b0d9e98c",
     "githubPrUrl": "https://github.com/mrdoob/three.js/pull/31402",
+    "created_at": "2025-07-13T06:48:39Z",
+    "merged_at": "2025-07-18T02:34:12Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -3437,6 +3503,8 @@
     "source_commit": "1fc010cb7bd1e17d94c1a33ba8dacdf9e34193cb",
     "target_commit": "7388f600209ce8a98f7211cd0e93a170b6e98d61",
     "githubPrUrl": "https://github.com/mrdoob/three.js/pull/30076",
+    "created_at": "2024-12-09T14:45:55Z",
+    "merged_at": "2024-12-09T17:58:52Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -3634,6 +3702,8 @@
     "source_commit": "bf4e6fcb64a1d6bdbaf975528595ac6873051641",
     "target_commit": "96ab0720fc65368e32ee3f2389cb192f96d8adff",
     "githubPrUrl": "https://github.com/mrdoob/three.js/pull/30750",
+    "created_at": "2025-03-18T01:10:00Z",
+    "merged_at": "2025-03-26T01:51:50Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -3688,6 +3758,8 @@
     "source_commit": "f258f5b2cb4a4cf9012e106837aba409b383e367",
     "target_commit": "83a25941859179b635105c9b4fd79d5542e3701e",
     "githubPrUrl": "https://github.com/CherryHQ/cherry-studio/pull/5540",
+    "created_at": "2025-04-30T09:00:47Z",
+    "merged_at": "2025-05-04T13:04:04Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -3907,6 +3979,8 @@
     "source_commit": "636c788e2ba413d21a5fd385c3ea4cc7e134e1be",
     "target_commit": "5644b00b87e07fa1acd84d4ec93f9f2fb1205090",
     "githubPrUrl": "https://github.com/CherryHQ/cherry-studio/pull/5637",
+    "created_at": "2025-05-03T13:40:19Z",
+    "merged_at": "2025-05-07T14:09:12Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -4170,6 +4244,8 @@
     "source_commit": "459bb12466abdade062607ae54f3267adaef8063",
     "target_commit": "e3e45c86baa3c51def49961f5d77201ee97e4385",
     "githubPrUrl": "https://github.com/opencv/opencv/pull/26815",
+    "created_at": "2025-01-21T14:12:23Z",
+    "merged_at": "2025-01-22T10:53:59Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -4224,6 +4300,8 @@
     "source_commit": "16a3d37dc159dbcaaf8ee74cf63669f0203f9655",
     "target_commit": "e546382fc1cbb61a7679c0511303729844a70111",
     "githubPrUrl": "https://github.com/opencv/opencv/pull/27297",
+    "created_at": "2025-05-10T14:08:12Z",
+    "merged_at": "2025-05-12T07:44:54Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -4245,6 +4323,8 @@
     "source_commit": "868fc5c581228f8f47bf4bc3ee84427acc99226a",
     "target_commit": "79afad939ecfaa332af0541db473fa94f8f425b6",
     "githubPrUrl": "https://github.com/opencv/opencv/pull/27284",
+    "created_at": "2025-05-05T14:22:10Z",
+    "merged_at": "2025-05-14T14:01:45Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -4409,6 +4489,8 @@
     "source_commit": "4aa4972550bec08faf477113f223475f7fb3e5d2",
     "target_commit": "51b5ea92ccb5f4683b0f52840a01031e1ed0baa3",
     "githubPrUrl": "https://github.com/nextcloud/server/pull/52846",
+    "created_at": "2025-05-14T22:20:57Z",
+    "merged_at": "2025-05-15T16:05:07Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -4441,6 +4523,8 @@
     "source_commit": "344ba9fe99b487f7f5164900679d56acf2d8bff2",
     "target_commit": "9cce37c219f95701fecc44f74595aa9c6effbdba",
     "githubPrUrl": "https://github.com/lvgl/lvgl/pull/8164",
+    "created_at": "2025-04-27T05:52:09Z",
+    "merged_at": "2025-04-28T20:14:44Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -4506,6 +4590,8 @@
     "source_commit": "d2ed41dda1618049a037df2639b9d28578847195",
     "target_commit": "4a57db33476f1caf3e85726a6b1e189c68c1f36b",
     "githubPrUrl": "https://github.com/lvgl/lvgl/pull/8129",
+    "created_at": "2025-04-18T09:14:39Z",
+    "merged_at": "2025-05-09T03:28:21Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -4571,6 +4657,8 @@
     "source_commit": "244b3b996e0b331468cf5967c937029535af569c",
     "target_commit": "e526b2a1faa4672eeb3610b466ecc25b1abb220b",
     "githubPrUrl": "https://github.com/lvgl/lvgl/pull/8689",
+    "created_at": "2025-08-14T09:19:56Z",
+    "merged_at": "2025-08-21T20:21:57Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -4944,6 +5032,8 @@
     "source_commit": "5f41926f0414c02f70547c50329969f7fe6a4b8d",
     "target_commit": "a0067e3984cc95bb3ed0dce9abb664ee6a01a199",
     "githubPrUrl": "https://github.com/lvgl/lvgl/pull/7602",
+    "created_at": "2025-01-14T09:51:19Z",
+    "merged_at": "2025-02-13T17:50:01Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -4976,6 +5066,8 @@
     "source_commit": "a1bf1f95a30ca95581d9811488636aec42dd2f80",
     "target_commit": "419534ccd4241fc11827741eb0d76ba0c9d21277",
     "githubPrUrl": "https://github.com/cline/cline/pull/5177",
+    "created_at": "2025-07-26T06:22:39Z",
+    "merged_at": "2025-07-26T06:24:39Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -5008,6 +5100,8 @@
     "source_commit": "b3abbd886e7e693c48b31a0af8046035bf014118",
     "target_commit": "f098af0f52bf1cdb7eb561c380caef5746b58d40",
     "githubPrUrl": "https://github.com/cline/cline/pull/5955",
+    "created_at": "2025-09-02T20:57:22Z",
+    "merged_at": "2025-09-03T23:42:46Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -5106,6 +5200,8 @@
     "source_commit": "0262e13ac48bbbc29f6c76b6b9a72e7e2ed2eb4b",
     "target_commit": "d0a8db831cbe657faf792f00c0e3325de0b75fb4",
     "githubPrUrl": "https://github.com/cline/cline/pull/4676",
+    "created_at": "2025-07-06T06:08:43Z",
+    "merged_at": "2025-07-08T01:20:56Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -5281,6 +5377,8 @@
     "source_commit": "07d20574868b2ebb51c95c30a7a81b3793f0f07e",
     "target_commit": "7d18fb9df620c61420c6939df22fb6f7af836bb2",
     "githubPrUrl": "https://github.com/cline/cline/pull/2347",
+    "created_at": "2025-03-20T13:08:25Z",
+    "merged_at": "2025-04-21T19:05:48Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -5390,6 +5488,8 @@
     "source_commit": "398bc87a64800e021966868243be2f09be72e73c",
     "target_commit": "2195a689b787a963bdacc35d348f4590c30a2692",
     "githubPrUrl": "https://github.com/cline/cline/pull/4786",
+    "created_at": "2025-07-09T22:24:57Z",
+    "merged_at": "2025-07-10T16:23:36Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -5477,6 +5577,8 @@
     "source_commit": "8f4c6038dd70ce02caaf7ae924dc28d5be63968e",
     "target_commit": "ca7f02b8cf8cd36d832a63e1c9ad892356c7df66",
     "githubPrUrl": "https://github.com/cline/cline/pull/5524",
+    "created_at": "2025-08-13T01:18:33Z",
+    "merged_at": "2025-08-13T04:19:29Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -5586,6 +5688,8 @@
     "source_commit": "4d8bdf29458db722a2bce1dfacc50771959b32fa",
     "target_commit": "cb4d5c90460885942cbbae0298b95f4ee5682086",
     "githubPrUrl": "https://github.com/cline/cline/pull/1808",
+    "created_at": "2025-02-15T04:29:19Z",
+    "merged_at": "2025-04-18T21:17:31Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -5629,6 +5733,8 @@
     "source_commit": "fa461585f1fc2d4a430e68e6c115a12f4936fe73",
     "target_commit": "0b21e50ca640581ecd46990475c8b223eaa05045",
     "githubPrUrl": "https://github.com/browser-use/browser-use/pull/1482",
+    "created_at": "2025-04-26T10:20:30Z",
+    "merged_at": "2025-04-27T01:38:54Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -5661,6 +5767,8 @@
     "source_commit": "515b94225aa86c40dc2c20034055ab8bcc88c6ae",
     "target_commit": "aab7b3bb54e2b15ee3b32ad7de74c91fc8b22f52",
     "githubPrUrl": "https://github.com/browser-use/browser-use/pull/857",
+    "created_at": "2025-02-24T22:57:12Z",
+    "merged_at": "2025-04-21T16:56:27Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -5693,6 +5801,8 @@
     "source_commit": "e85a547378b236c9788802d28e816f10940a7e53",
     "target_commit": "72f1585f9add5b72e829eaee3b5bff684e0b08d3",
     "githubPrUrl": "https://github.com/browser-use/browser-use/pull/3172",
+    "created_at": "2025-09-20T02:12:03Z",
+    "merged_at": "2025-09-20T02:24:46Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -5725,6 +5835,8 @@
     "source_commit": "9f8a629126a31224f6b1aa90d650cdc61f7568f2",
     "target_commit": "c4864570586f4c2f019797d3b0a9c4c76e93396b",
     "githubPrUrl": "https://github.com/electron/electron/pull/46982",
+    "created_at": "2025-05-07T15:31:40Z",
+    "merged_at": "2025-05-08T19:17:22Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -5790,6 +5902,8 @@
     "source_commit": "a42afaa8665b6d1b3a344918c60853184a97060e",
     "target_commit": "6084595c5608226e961d251bfb5ec138de8022ca",
     "githubPrUrl": "https://github.com/electron/electron/pull/47361",
+    "created_at": "2025-06-04T04:21:42Z",
+    "merged_at": "2025-06-07T06:00:31Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -5866,6 +5980,8 @@
     "source_commit": "7083419361385dfcd762656f0227581aedc4f514",
     "target_commit": "100ad244b742d221ad129e96bef934e8128403a9",
     "githubPrUrl": "https://github.com/electron/electron/pull/46660",
+    "created_at": "2025-04-16T22:13:59Z",
+    "merged_at": "2025-04-22T11:31:05Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -5898,6 +6014,8 @@
     "source_commit": "d6f4982522efd5917b44d1ceed418e4a0ee7824e",
     "target_commit": "2cc56562e22cd36c70f0b632c3297d62c3c58b06",
     "githubPrUrl": "https://github.com/electron/electron/pull/45671",
+    "created_at": "2025-02-18T09:16:08Z",
+    "merged_at": "2025-02-20T22:44:35Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -5985,6 +6103,8 @@
     "source_commit": "6cd1805364f457b19ebecb38b8f909146f968354",
     "target_commit": "b2255442712cb6db83d112deb6ba61197d06a5f3",
     "githubPrUrl": "https://github.com/nodejs/node/pull/56185",
+    "created_at": "2024-12-08T22:56:33Z",
+    "merged_at": "2024-12-14T07:35:00Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -6039,6 +6159,8 @@
     "source_commit": "18b9120435287eafb1865102c6c4dc6a7cff5ede",
     "target_commit": "e8b6c183d46c41b2992c4f5cafceb7f9c6f8710d",
     "githubPrUrl": "https://github.com/nodejs/node/pull/57691",
+    "created_at": "2025-03-30T17:18:15Z",
+    "merged_at": "2025-04-07T22:09:34Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -6071,6 +6193,8 @@
     "source_commit": "e4987d2a9f36b33f3934725723f9c4cc998ef278",
     "target_commit": "4bf1f915d3374721f8a1655b1a151c1c423b1a3c",
     "githubPrUrl": "https://github.com/sveltejs/svelte/pull/15250",
+    "created_at": "2025-02-09T12:56:34Z",
+    "merged_at": "2025-03-03T16:38:41Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -6235,6 +6359,8 @@
     "source_commit": "2af7ba21563f1b7f011ffa9f0c08e4acb473eef3",
     "target_commit": "44bec4c8b172a47ff300f754463555bbb694bb05",
     "githubPrUrl": "https://github.com/sveltejs/svelte/pull/16232",
+    "created_at": "2025-06-24T21:39:21Z",
+    "merged_at": "2025-06-25T09:35:03Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -6300,6 +6426,8 @@
     "source_commit": "76c06b58a4d9e8ee3fe3c0269a046987ad0502e5",
     "target_commit": "3555a95e7b888335d9f72e432eb4f9fb9640e8cd",
     "githubPrUrl": "https://github.com/alibaba/spring-ai-alibaba/pull/869",
+    "created_at": "2025-05-16T03:07:54Z",
+    "merged_at": "2025-05-17T13:52:37Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -6354,6 +6482,8 @@
     "source_commit": "71e7eeb27dfe42c5a805da413ef6e9faf84fe9d0",
     "target_commit": "4bc73055c7b33f53433d9725eab5010b85a59632",
     "githubPrUrl": "https://github.com/alibaba/spring-ai-alibaba/pull/903",
+    "created_at": "2025-05-20T07:23:53Z",
+    "merged_at": "2025-05-20T08:13:25Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -6474,6 +6604,8 @@
     "source_commit": "de968877895a8ae5f0edb83a43b37fa190cc8ec9",
     "target_commit": "77ea28a234023019ddda3f4a5f7a81b3514d3eb8",
     "githubPrUrl": "https://github.com/google-gemini/gemini-cli/pull/4828",
+    "created_at": "2025-07-25T02:52:00Z",
+    "merged_at": "2025-07-25T20:59:52Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -6748,6 +6880,8 @@
     "source_commit": "6e4236bf7681b2a2cba5630a8dd0a0d5a200a0df",
     "target_commit": "d64b61ef89f01ecdc0e095a995d47522245a0065",
     "githubPrUrl": "https://github.com/google-gemini/gemini-cli/pull/8797",
+    "created_at": "2025-09-19T02:30:18Z",
+    "merged_at": "2025-09-19T15:48:03Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -6813,6 +6947,8 @@
     "source_commit": "7ffe8038efaa5bf263a2a933819bcd4badd37dc2",
     "target_commit": "e7ed0a410ae510cda8b53ea20f3d758bd90a0f00",
     "githubPrUrl": "https://github.com/google-gemini/gemini-cli/pull/4163",
+    "created_at": "2025-07-14T21:51:27Z",
+    "merged_at": "2025-07-15T05:58:59Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -6856,6 +6992,8 @@
     "source_commit": "53f8617b249c9f0443f5082a293a30504a118030",
     "target_commit": "4c150ab4befb2a727b493d732d8d3d01f388e492",
     "githubPrUrl": "https://github.com/google-gemini/gemini-cli/pull/5793",
+    "created_at": "2025-08-07T18:24:53Z",
+    "merged_at": "2025-08-07T21:25:23Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -6899,6 +7037,8 @@
     "source_commit": "809b933d8150c29154062e4d596cd916258022fc",
     "target_commit": "c6e624883852318b71baa2a060c933bb5de591ef",
     "githubPrUrl": "https://github.com/google-gemini/gemini-cli/pull/9177",
+    "created_at": "2025-09-23T02:47:05Z",
+    "merged_at": "2025-09-25T23:51:03Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -6986,6 +7126,8 @@
     "source_commit": "4e49ee4c734f53a705df72efda2d076cb0acf44e",
     "target_commit": "6fd82699700fc19ea30a7b29a059f392ccfbb2cc",
     "githubPrUrl": "https://github.com/google-gemini/gemini-cli/pull/5819",
+    "created_at": "2025-08-07T23:58:43Z",
+    "merged_at": "2025-08-26T19:04:36Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -7150,6 +7292,8 @@
     "source_commit": "5a05fb0dd002481343aaab7736a871904bb07c6f",
     "target_commit": "0fa1bd7ac417366f321ed2554caeaef550321959",
     "githubPrUrl": "https://github.com/google-gemini/gemini-cli/pull/8154",
+    "created_at": "2025-09-10T05:46:38Z",
+    "merged_at": "2025-09-13T06:45:35Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -7303,6 +7447,8 @@
     "source_commit": "8362ab405c35d260dd2328dc207aefcf30778f66",
     "target_commit": "f189316eae1c199a5891f7a8bc47d53bb1b5c818",
     "githubPrUrl": "https://github.com/infiniflow/ragflow/pull/7151",
+    "created_at": "2025-04-20T10:34:32Z",
+    "merged_at": "2025-04-30T01:43:17Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -7423,6 +7569,8 @@
     "source_commit": "0a42e5777eb966b26aaf8f2a7d593ae99a4aa87a",
     "target_commit": "a63caa1087852ada98964678be26b7c4d8363af6",
     "githubPrUrl": "https://github.com/infiniflow/ragflow/pull/6691",
+    "created_at": "2025-03-31T10:00:39Z",
+    "merged_at": "2025-03-31T14:31:35Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -7499,6 +7647,8 @@
     "source_commit": "b1c874698469ac999d210cd8cde59425781e4da2",
     "target_commit": "705123406ec7cd5eb1f9be26f6c5c31357aeffc9",
     "githubPrUrl": "https://github.com/infiniflow/ragflow/pull/6553",
+    "created_at": "2025-03-26T08:12:58Z",
+    "merged_at": "2025-05-07T02:55:11Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -7575,6 +7725,8 @@
     "source_commit": "469460483665000f522b6c9a6583bb34f17a954b",
     "target_commit": "2d06022b78536bd22a0fd83f38804f39aa34cce8",
     "githubPrUrl": "https://github.com/infiniflow/ragflow/pull/5065",
+    "created_at": "2025-02-18T02:16:40Z",
+    "merged_at": "2025-02-18T05:41:20Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -7640,6 +7792,8 @@
     "source_commit": "d205ac457960f73d781547540cde1732f69076ac",
     "target_commit": "710b8bda565c411ecb23e8b670d0ba7f45d2b3f3",
     "githubPrUrl": "https://github.com/appwrite/appwrite/pull/9999",
+    "created_at": "2025-06-12T11:58:11Z",
+    "merged_at": "2025-07-04T07:41:42Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -7848,6 +8002,8 @@
     "source_commit": "6d94b16fd5f4f72bb741f9b900b83179c8ab46c9",
     "target_commit": "0a5238acfc4ca99c363283bf3bb16e20905f2a39",
     "githubPrUrl": "https://github.com/laravel/framework/pull/56591",
+    "created_at": "2025-08-08T10:09:33Z",
+    "merged_at": "2025-08-08T13:53:29Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -7869,6 +8025,8 @@
     "source_commit": "2e5054a19ba55b335bf8df43a8ae7e032244f671",
     "target_commit": "180c25ff94ae2dff26d2ca5f8bf779af1e8fc8c2",
     "githubPrUrl": "https://github.com/laravel/framework/pull/54226",
+    "created_at": "2025-01-17T08:27:45Z",
+    "merged_at": "2025-01-17T15:15:36Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -7901,6 +8059,8 @@
     "source_commit": "23fb9f2b5162752fbf42d892c6ff311a346565b8",
     "target_commit": "866fa4a4c9635bae6f0a6b59a78954083ff5ff1a",
     "githubPrUrl": "https://github.com/valkey-io/valkey/pull/2141",
+    "created_at": "2025-05-27T18:35:21Z",
+    "merged_at": "2025-06-27T20:57:50Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -7922,6 +8082,8 @@
     "source_commit": "ea2e48a807e1d4a1a5a684a2a699eda1934a0c6f",
     "target_commit": "36f37c0bafa72c091a9a3725b9a026a056130892",
     "githubPrUrl": "https://github.com/valkey-io/valkey/pull/1889",
+    "created_at": "2025-03-26T22:24:23Z",
+    "merged_at": "2025-03-31T07:46:20Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -7954,6 +8116,8 @@
     "source_commit": "b5c7743971df5476acbdbbbd3b378496e885e1e4",
     "target_commit": "1379171021c18b009fa02c42088e82caf0e33203",
     "githubPrUrl": "https://github.com/valkey-io/valkey/pull/2059",
+    "created_at": "2025-05-07T15:51:50Z",
+    "merged_at": "2025-05-09T07:05:15Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -8085,6 +8249,8 @@
     "source_commit": "78bcc0a2cfb33ec940bfb14cb12ea10efa3af93a",
     "target_commit": "ecb3abd53e891861ce996506689336b6442ec8fb",
     "githubPrUrl": "https://github.com/valkey-io/valkey/pull/1651",
+    "created_at": "2025-01-31T21:32:02Z",
+    "merged_at": "2025-02-03T21:23:32Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -8117,6 +8283,8 @@
     "source_commit": "7fa784a27562940d2995fc6e3d6938940d81e4b6",
     "target_commit": "8b2137d6cd7c8b898352b8bcb035402958d92707",
     "githubPrUrl": "https://github.com/valkey-io/valkey/pull/1485",
+    "created_at": "2024-12-24T07:17:24Z",
+    "merged_at": "2025-02-09T11:34:14Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -8215,6 +8383,8 @@
     "source_commit": "99563e91736e9de473c4865d5cb6fd9eb1a26bcb",
     "target_commit": "b045f18e378341876ee69e729fc855cab501c3cd",
     "githubPrUrl": "https://github.com/facebook/react/pull/32499",
+    "created_at": "2025-03-02T21:39:14Z",
+    "merged_at": "2025-03-17T13:17:01Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -8401,6 +8571,8 @@
     "source_commit": "88b976740467f9dfabae03c79a8eff9033c35050",
     "target_commit": "be58f26f9a6e579d8df36d901a59249d9ac1393f",
     "githubPrUrl": "https://github.com/facebook/react/pull/33059",
+    "created_at": "2025-04-29T22:02:18Z",
+    "merged_at": "2025-05-05T21:47:47Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -8422,6 +8594,8 @@
     "source_commit": "78533d7230bdb5e352e325c15d0d53f38428b08e",
     "target_commit": "e466450c007539a2b1e4d2951c6756ff004a2b52",
     "githubPrUrl": "https://github.com/mudler/LocalAI/pull/4577",
+    "created_at": "2025-01-11T00:08:13Z",
+    "merged_at": "2025-01-17T16:05:59Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -8663,6 +8837,8 @@
     "source_commit": "d1b583181dcc31613cd586d63329cb4c4a586972",
     "target_commit": "724546e28a5778e1c3f5100406ed7237f76aab55",
     "githubPrUrl": "https://github.com/bitcoin/bitcoin/pull/31886",
+    "created_at": "2025-02-16T18:31:07Z",
+    "merged_at": "2025-08-08T02:44:06Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -8717,6 +8893,8 @@
     "source_commit": "ae024137bda9fe189f4e7ccf26dbaffd44cbbeb6",
     "target_commit": "4ba2e480ffa0b77113953bee4ff5c9349e277e7e",
     "githubPrUrl": "https://github.com/bitcoin/bitcoin/pull/31405",
+    "created_at": "2024-12-02T19:29:15Z",
+    "merged_at": "2025-06-11T20:17:27Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -8738,6 +8916,8 @@
     "source_commit": "663a9cabf811e2fc53102bc6da00d09fc99d1d81",
     "target_commit": "e98c51fcce9ae3f441a416cab32a5c85756c6c64",
     "githubPrUrl": "https://github.com/bitcoin/bitcoin/pull/32425",
+    "created_at": "2025-05-06T13:09:42Z",
+    "merged_at": "2025-06-10T19:57:46Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -8792,6 +8972,8 @@
     "source_commit": "286783fb8e71cec6d2294bd871e5ccf8c798c646",
     "target_commit": "90a57d552d15f1b2a4d92cdfc3a4308efcf5c57b",
     "githubPrUrl": "https://github.com/wavetermdev/waveterm/pull/1793",
+    "created_at": "2025-01-22T18:28:21Z",
+    "merged_at": "2025-01-23T00:04:08Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -8857,6 +9039,8 @@
     "source_commit": "3beb14aa6bdd9118c43cdd75adca32616619451b",
     "target_commit": "61b0fb4baec87c6fa91bdeadc43fab75fd29eb61",
     "githubPrUrl": "https://github.com/wavetermdev/waveterm/pull/1755",
+    "created_at": "2025-01-16T17:17:28Z",
+    "merged_at": "2025-01-16T19:17:29Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -9076,6 +9260,8 @@
     "source_commit": "ce9775c00c36ba290c7a6f5134c0ff7759def6eb",
     "target_commit": "4b7637fb17fb0f937d67f12a63f3f370a3343117",
     "githubPrUrl": "https://github.com/wavetermdev/waveterm/pull/1998",
+    "created_at": "2025-02-19T23:12:12Z",
+    "merged_at": "2025-02-20T18:17:33Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -9240,6 +9426,8 @@
     "source_commit": "291a39c87eb2bc228816d02c55a1f6857822006f",
     "target_commit": "ebe680fbcacd9210aa219ab01d98012ac1d6faae",
     "githubPrUrl": "https://github.com/n8n-io/n8n/pull/20210",
+    "created_at": "2025-09-30T13:17:43Z",
+    "merged_at": "2025-09-30T18:37:57Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -9481,6 +9669,8 @@
     "source_commit": "14f59373d2264e97d73474bed5964a6a405d8082",
     "target_commit": "61fc500fee842539e2a5011303147fdf5df0cd96",
     "githubPrUrl": "https://github.com/n8n-io/n8n/pull/15057",
+    "created_at": "2025-05-02T12:16:08Z",
+    "merged_at": "2025-05-10T08:37:43Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -9623,6 +9813,8 @@
     "source_commit": "aae55fe7ac77594444c3405161555a517902c68b",
     "target_commit": "93216919462181f52d6994f8f20a9a478716545f",
     "githubPrUrl": "https://github.com/n8n-io/n8n/pull/13323",
+    "created_at": "2025-02-17T15:14:57Z",
+    "merged_at": "2025-02-20T11:38:54Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -9776,6 +9968,8 @@
     "source_commit": "9627409d223cbff5d8b8a90e796c39b6124a736d",
     "target_commit": "c8d45ad42aebf937a8347aa32a84ca63416bfdd4",
     "githubPrUrl": "https://github.com/n8n-io/n8n/pull/20344",
+    "created_at": "2025-10-03T08:18:17Z",
+    "merged_at": "2025-10-03T11:28:26Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -9808,6 +10002,8 @@
     "source_commit": "ef550104cdceb8113381c24fabb63d7e0f6fa6a4",
     "target_commit": "f523897785e1a45484b31c9bb16e66e060553601",
     "githubPrUrl": "https://github.com/n8n-io/n8n/pull/20188",
+    "created_at": "2025-09-30T08:08:56Z",
+    "merged_at": "2025-10-02T08:18:31Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -9884,6 +10080,8 @@
     "source_commit": "3eb1c1c783a45a150fa7229d8f2590d3786f58ad",
     "target_commit": "77ece2e572096e6ad267e7f9363ebbf9f8ba46e8",
     "githubPrUrl": "https://github.com/n8n-io/n8n/pull/15362",
+    "created_at": "2025-05-13T16:10:48Z",
+    "merged_at": "2025-05-14T09:46:48Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -9916,6 +10114,8 @@
     "source_commit": "e1474c1f3020e2615c438d82b29f48626f456a9f",
     "target_commit": "c1cedce10cfe7436da12580ea231d5837520ef69",
     "githubPrUrl": "https://github.com/microsoft/PowerToys/pull/40814",
+    "created_at": "2025-07-25T19:24:43Z",
+    "merged_at": "2025-07-28T13:32:09Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -9959,6 +10159,8 @@
     "source_commit": "10e569cc1c563ece2eb7e2581cef943829a72440",
     "target_commit": "91b3b6aebd3a02a4ac158b21ce469138df893178",
     "githubPrUrl": "https://github.com/immich-app/immich/pull/14777",
+    "created_at": "2024-12-18T14:29:11Z",
+    "merged_at": "2025-01-07T18:25:43Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -10145,6 +10347,8 @@
     "source_commit": "6ba94ac2f2f78c871f56874a7c2ff61b2ff4a06b",
     "target_commit": "966c3f22d034c230a14bb21b02627ef6d00eec68",
     "githubPrUrl": "https://github.com/immich-app/immich/pull/17124",
+    "created_at": "2025-03-26T03:13:57Z",
+    "merged_at": "2025-03-31T11:28:42Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -10177,6 +10381,8 @@
     "source_commit": "584e5894bfd4fe356e790fa9781ccee4e5224874",
     "target_commit": "5f4759196534661bd332085514878d0efbb7ce84",
     "githubPrUrl": "https://github.com/immich-app/immich/pull/17535",
+    "created_at": "2025-04-10T21:20:06Z",
+    "merged_at": "2025-04-11T18:44:45Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -10495,6 +10701,8 @@
     "source_commit": "55f4e93456ab7415082e342af9ad5cabd52562a6",
     "target_commit": "9032c7e021872a913e28de2e79bd9ab9806e7413",
     "githubPrUrl": "https://github.com/immich-app/immich/pull/18043",
+    "created_at": "2025-05-02T23:17:36Z",
+    "merged_at": "2025-06-12T23:33:29Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -10571,6 +10779,8 @@
     "source_commit": "4d6d5537b713ca80bb2a670fdc7be66882b12d5c",
     "target_commit": "7e2009f038cbf3f26403af6582af3cf8ba91672f",
     "githubPrUrl": "https://github.com/immich-app/immich/pull/14874",
+    "created_at": "2024-12-23T00:44:35Z",
+    "merged_at": "2025-01-02T04:50:15Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -10636,6 +10846,8 @@
     "source_commit": "c664d99a348999d16cda45a8dd57db436b8f9fba",
     "target_commit": "d38f1f55f42d600d05058e70d6ccee9679623591",
     "githubPrUrl": "https://github.com/immich-app/immich/pull/16893",
+    "created_at": "2025-03-15T19:34:15Z",
+    "merged_at": "2025-04-28T14:23:05Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -10855,6 +11067,8 @@
     "source_commit": "b845184c80295603e3a02dfad84ff2755d417aff",
     "target_commit": "b7a12558bc8e69c9c96b9a5b12f61f94689ea0e3",
     "githubPrUrl": "https://github.com/immich-app/immich/pull/17879",
+    "created_at": "2025-04-25T11:56:27Z",
+    "merged_at": "2025-04-30T21:45:35Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -10964,6 +11178,8 @@
     "source_commit": "7a8987dac5f0ed0c798a73e8b4ec8f5e640bc63a",
     "target_commit": "075f1b5b8015e343f25b45d36ccff571cb39739b",
     "githubPrUrl": "https://github.com/vllm-project/vllm/pull/12608",
+    "created_at": "2025-01-31T12:48:00Z",
+    "merged_at": "2025-02-02T08:40:58Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -11040,6 +11256,8 @@
     "source_commit": "5e125e74d1b9739025ccb81106e28ce9b0dd4ea5",
     "target_commit": "a800045d0e2473ce173865edb83967cd210dec4c",
     "githubPrUrl": "https://github.com/vllm-project/vllm/pull/15998",
+    "created_at": "2025-04-03T07:29:48Z",
+    "merged_at": "2025-04-04T16:39:02Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -11072,6 +11290,8 @@
     "source_commit": "f4962a6d55a340ebb569d377c842deff7611d8f7",
     "target_commit": "6217b0c46176fa51196d862e02e1b3722eefa4de",
     "githubPrUrl": "https://github.com/vllm-project/vllm/pull/24425",
+    "created_at": "2025-09-08T08:32:50Z",
+    "merged_at": "2025-09-10T04:24:11Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -11093,6 +11313,8 @@
     "source_commit": "c3bf9bad11193ee684ed6083b6692d0b5bf2bac7",
     "target_commit": "3fe18934d7f33b98812d7402463fe171c24efc77",
     "githubPrUrl": "https://github.com/vllm-project/vllm/pull/19756",
+    "created_at": "2025-06-17T16:56:45Z",
+    "merged_at": "2025-06-21T20:01:07Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -11147,6 +11369,8 @@
     "source_commit": "d8037867313eef09779b265ea4bace76d2d118ba",
     "target_commit": "134705b1474ddcfac234a0a01313874f7c8b59bc",
     "githubPrUrl": "https://github.com/vllm-project/vllm/pull/17425",
+    "created_at": "2025-04-29T23:34:26Z",
+    "merged_at": "2025-04-30T15:06:58Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -11245,6 +11469,8 @@
     "source_commit": "041c7a5e63d5559ce5571a30e177c072b1b357b2",
     "target_commit": "61b521f4e9a1e8bdba760394740814f25cc108c2",
     "githubPrUrl": "https://github.com/astral-sh/uv/pull/12941",
+    "created_at": "2025-04-17T12:42:42Z",
+    "merged_at": "2025-04-17T14:25:39Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -11266,6 +11492,8 @@
     "source_commit": "1fae8dbf1789717f45e82ea290c1c99642d05139",
     "target_commit": "ed57db2b34c2a7a955b2dc76583dce7ace02e628",
     "githubPrUrl": "https://github.com/astral-sh/uv/pull/11088",
+    "created_at": "2025-01-30T03:44:16Z",
+    "merged_at": "2025-01-31T20:45:49Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -11342,6 +11570,8 @@
     "source_commit": "1df2fe97207fe1346ca92ea9c41dd3fd13303001",
     "target_commit": "ed40132dcb3c6ab5502056b7de0e47c0858ec016",
     "githubPrUrl": "https://github.com/dbeaver/dbeaver/pull/38239",
+    "created_at": "2025-05-29T13:45:08Z",
+    "merged_at": "2025-06-17T12:04:07Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -11396,6 +11626,8 @@
     "source_commit": "469e4265a58af95a6d5f4069515e029fc2891374",
     "target_commit": "dc67ca7cf486ceaf45559318cdcbca193847188d",
     "githubPrUrl": "https://github.com/dbeaver/dbeaver/pull/36789",
+    "created_at": "2025-01-13T17:13:19Z",
+    "merged_at": "2025-01-22T11:31:48Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -11527,6 +11759,8 @@
     "source_commit": "24ad3c4030412df3d9c843c405e90a0b1e2ad5dd",
     "target_commit": "bc3ac7bb47092a934b344791d8aa3a1c41e6c8f7",
     "githubPrUrl": "https://github.com/dbeaver/dbeaver/pull/37564",
+    "created_at": "2025-03-17T18:09:45Z",
+    "merged_at": "2025-04-14T05:54:24Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -11592,6 +11826,8 @@
     "source_commit": "8793ec7a6c71aa503b1dc492ddb4e982a8f3e9d9",
     "target_commit": "8224826969254a49e68e025cae82d3cf1574de38",
     "githubPrUrl": "https://github.com/dbeaver/dbeaver/pull/38915",
+    "created_at": "2025-08-11T23:34:52Z",
+    "merged_at": "2025-08-13T18:00:13Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -11657,6 +11893,8 @@
     "source_commit": "ce4d9d08df41142ff219bb3dc44968084eaae0dc",
     "target_commit": "d47632c0583bac481d4ce7cc9b6b1711d0f8e0fc",
     "githubPrUrl": "https://github.com/filamentphp/filament/pull/15267",
+    "created_at": "2025-01-06T15:11:03Z",
+    "merged_at": "2025-01-09T11:14:30Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -11689,6 +11927,8 @@
     "source_commit": "8b44845f2bfab244f650d38e1b0ac00e733612e7",
     "target_commit": "912f080f3bf9873c1d059bcb9df485e3d8939220",
     "githubPrUrl": "https://github.com/filamentphp/filament/pull/15756",
+    "created_at": "2025-03-02T14:26:32Z",
+    "merged_at": "2025-03-04T08:04:40Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -11710,6 +11950,8 @@
     "source_commit": "753ceeac007a0d0aa4423971b01d651288720873",
     "target_commit": "77874d0c3782a257101c3fb578144a6950f3dc9c",
     "githubPrUrl": "https://github.com/filamentphp/filament/pull/15181",
+    "created_at": "2024-12-25T17:25:41Z",
+    "merged_at": "2025-01-02T08:32:05Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -11764,6 +12006,8 @@
     "source_commit": "e4a7ecf0e65574522eb9fbe70b7339f41de0bbe2",
     "target_commit": "871ec75815e1f92da141e9aef80f287f7779dfe7",
     "githubPrUrl": "https://github.com/filamentphp/filament/pull/15217",
+    "created_at": "2024-12-31T16:58:11Z",
+    "merged_at": "2025-01-02T08:15:32Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -11807,6 +12051,8 @@
     "source_commit": "f83c97fa0b91f83bd20511d1abf235dc48b596e2",
     "target_commit": "0ce67cdee87e9fee014ba95c11e8e36b8913041c",
     "githubPrUrl": "https://github.com/dotnet/aspnetcore/pull/61006",
+    "created_at": "2025-03-19T00:34:02Z",
+    "merged_at": "2025-03-25T01:07:19Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -11883,6 +12129,8 @@
     "source_commit": "8bb2b2067815996d9a8224ee38aa80a79f797827",
     "target_commit": "742f022e92563bd6fb87d1c752f25fd14e1b2a43",
     "githubPrUrl": "https://github.com/dotnet/aspnetcore/pull/62734",
+    "created_at": "2025-07-15T18:20:26Z",
+    "merged_at": "2025-07-18T21:57:52Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -11937,6 +12185,8 @@
     "source_commit": "e7d49f52363753a4faa2a22538eace7a923382ce",
     "target_commit": "2f372e8ff137aa24114269576fc1912f12ff5402",
     "githubPrUrl": "https://github.com/dotnet/aspnetcore/pull/62936",
+    "created_at": "2025-07-25T22:26:23Z",
+    "merged_at": "2025-07-28T17:12:20Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -12002,6 +12252,8 @@
     "source_commit": "7ba02e8ac71eeba562476953d5ff6030b8eda765",
     "target_commit": "8ac940ff581aa344ab8f859874f6d4c0ecaec6b6",
     "githubPrUrl": "https://github.com/dotnet/aspnetcore/pull/59322",
+    "created_at": "2024-12-04T23:45:39Z",
+    "merged_at": "2025-01-08T13:19:35Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -12067,6 +12319,8 @@
     "source_commit": "fa96214dbc167080bec90a917c7d911a1f3539e4",
     "target_commit": "a712b62f7804121730a95d34195cad365eb350b7",
     "githubPrUrl": "https://github.com/microsoft/semantic-kernel/pull/11361",
+    "created_at": "2025-04-03T14:21:48Z",
+    "merged_at": "2025-04-07T10:34:35Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -12110,6 +12364,8 @@
     "source_commit": "bfcfb2ac16dd8f198a99fef43072cb178f9a1d8e",
     "target_commit": "0ec45f028467c99d8d1efeee6c201210d9433e6d",
     "githubPrUrl": "https://github.com/kestra-io/kestra/pull/7191",
+    "created_at": "2025-02-05T10:49:41Z",
+    "merged_at": "2025-02-11T09:41:11Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -12208,6 +12464,8 @@
     "source_commit": "a716094a9d3c3522fb40ea988b3dab2763d7519c",
     "target_commit": "3c2a2765fcd06d7fe127e362ddc9a706d4073047",
     "githubPrUrl": "https://github.com/kestra-io/kestra/pull/7381",
+    "created_at": "2025-02-13T11:26:25Z",
+    "merged_at": "2025-02-17T08:49:49Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -12350,6 +12608,8 @@
     "source_commit": "01a77aff0422884ed7b18ba8d00a0495d0bab88e",
     "target_commit": "06e7c6e48e22420da5bb0bf3188bc00f73974c9a",
     "githubPrUrl": "https://github.com/kestra-io/kestra/pull/6844",
+    "created_at": "2025-01-20T21:50:08Z",
+    "merged_at": "2025-01-21T09:25:37Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -12393,6 +12653,8 @@
     "source_commit": "8e9bad6457449ef2a435be03a9f97acc2dd2108a",
     "target_commit": "5e0fa17a5e9e977daa4b896e1dfc2de61f526113",
     "githubPrUrl": "https://github.com/juspay/hyperswitch/pull/8063",
+    "created_at": "2025-05-17T07:43:29Z",
+    "merged_at": "2025-05-23T07:52:09Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -12425,6 +12687,8 @@
     "source_commit": "50cbe20ee1da0392f4f590bade9f866435356b87",
     "target_commit": "59ec03ceef191dcada50380ec20cd843b80a87b6",
     "githubPrUrl": "https://github.com/juspay/hyperswitch/pull/7353",
+    "created_at": "2025-02-24T07:15:31Z",
+    "merged_at": "2025-04-30T11:34:53Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -12523,6 +12787,8 @@
     "source_commit": "b26e845198407f3672a7f80d8eea670419858e0e",
     "target_commit": "0231de6ae6795ef7fa85e5ab87b6fe46a4955333",
     "githubPrUrl": "https://github.com/juspay/hyperswitch/pull/9130",
+    "created_at": "2025-09-01T11:34:56Z",
+    "merged_at": "2025-09-26T08:09:57Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -12599,6 +12865,8 @@
     "source_commit": "e29021aed71bfebb76c0305f554375061adb8bf9",
     "target_commit": "5fb6ee38d2d7d2fc6e1a67005b12d3b9aaac418f",
     "githubPrUrl": "https://github.com/ClickHouse/ClickHouse/pull/80345",
+    "created_at": "2025-05-16T14:10:56Z",
+    "merged_at": "2025-05-20T11:04:23Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -12730,6 +12998,8 @@
     "source_commit": "83afa5c6704737ed4afc5a178f96bf49c39e5e4c",
     "target_commit": "40a4654d7b114f1d42f48680d57007ae80897cd1",
     "githubPrUrl": "https://github.com/ClickHouse/ClickHouse/pull/73546",
+    "created_at": "2024-12-18T14:33:07Z",
+    "merged_at": "2025-01-08T15:02:30Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -12850,6 +13120,8 @@
     "source_commit": "3d6e0982755b235c6b55f377894ff1652a5c8f99",
     "target_commit": "36ea28ab28fd93258143ab4312e60e2b5e244843",
     "githubPrUrl": "https://github.com/ClickHouse/ClickHouse/pull/75218",
+    "created_at": "2025-01-29T14:59:52Z",
+    "merged_at": "2025-02-03T17:25:43Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -12904,6 +13176,8 @@
     "source_commit": "473c1b82e2bc2cbbbaac137fb86187c31d244700",
     "target_commit": "fd6ba0c19048b6a546188661d1092c6c76a72796",
     "githubPrUrl": "https://github.com/ClickHouse/ClickHouse/pull/85266",
+    "created_at": "2025-08-08T04:14:37Z",
+    "merged_at": "2025-08-16T23:15:41Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -12969,6 +13243,8 @@
     "source_commit": "39fba894af99b367fe5c1f9375b3dc2c8fc25bd3",
     "target_commit": "cc962559c45fcee9706d86c6425d48e794676a67",
     "githubPrUrl": "https://github.com/ClickHouse/ClickHouse/pull/74070",
+    "created_at": "2025-01-02T09:44:06Z",
+    "merged_at": "2025-02-19T14:24:56Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -13155,6 +13431,8 @@
     "source_commit": "80e66f08662739d8eaaccb40ef75c573572bb8ba",
     "target_commit": "73ecc7d809300ed1c29e1078712c531ebddcb181",
     "githubPrUrl": "https://github.com/ClickHouse/ClickHouse/pull/85873",
+    "created_at": "2025-08-19T10:17:03Z",
+    "merged_at": "2025-08-21T08:55:58Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -13363,6 +13641,8 @@
     "source_commit": "1c01feef2757648e0b1b801cf1f81c59de527bb6",
     "target_commit": "314352043db0170026d11475bcaf67c7bb4fc311",
     "githubPrUrl": "https://github.com/ClickHouse/ClickHouse/pull/82441",
+    "created_at": "2025-06-23T18:05:34Z",
+    "merged_at": "2025-07-16T16:40:56Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -13516,6 +13796,8 @@
     "source_commit": "25f2e13a8fc3ed6e6215ee7481677e1b8523ac4c",
     "target_commit": "f9987c89a4cfaa95269385f24323dc6f44cda6e9",
     "githubPrUrl": "https://github.com/ClickHouse/ClickHouse/pull/80597",
+    "created_at": "2025-05-21T02:01:44Z",
+    "merged_at": "2025-05-22T07:25:36Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -13581,6 +13863,8 @@
     "source_commit": "cb7d649b965c4049bf97942db7125cce1154ca38",
     "target_commit": "79224f240cf020f73a9f492ce293d046fc0b7949",
     "githubPrUrl": "https://github.com/ClickHouse/ClickHouse/pull/74715",
+    "created_at": "2025-01-17T13:12:15Z",
+    "merged_at": "2025-01-20T16:18:08Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -13635,6 +13919,8 @@
     "source_commit": "e06542d23d77ca297014b40c7fd0f406f15fef81",
     "target_commit": "f9d51faa7cba634f38a711494003d404946b05de",
     "githubPrUrl": "https://github.com/ClickHouse/ClickHouse/pull/80391",
+    "created_at": "2025-05-17T13:29:28Z",
+    "merged_at": "2025-06-10T16:52:40Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -13722,6 +14008,8 @@
     "source_commit": "1ac5c4a6a23b4742624d64db210f10ca95133b11",
     "target_commit": "3eee8866fb55acab61eaba6dc9eebd847f483913",
     "githubPrUrl": "https://github.com/ClickHouse/ClickHouse/pull/75474",
+    "created_at": "2025-02-04T02:13:57Z",
+    "merged_at": "2025-02-18T14:52:37Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -13930,6 +14218,8 @@
     "source_commit": "8a04621f436a36b35346ff474fb980469b61647d",
     "target_commit": "d67628cd7e7aeeba2a60bea273c5cfc08714120c",
     "githubPrUrl": "https://github.com/ClickHouse/ClickHouse/pull/72920",
+    "created_at": "2024-12-09T05:17:40Z",
+    "merged_at": "2024-12-23T22:45:10Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -13995,6 +14285,8 @@
     "source_commit": "fcf040857f04ef064a06d80191fca112d0ba8f04",
     "target_commit": "5e318eba16c2327289af2e96b9c099ec7469acfa",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/132077",
+    "created_at": "2025-07-29T12:48:00Z",
+    "merged_at": "2025-08-05T06:41:24Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -14104,6 +14396,8 @@
     "source_commit": "4b868b0e11f4a59d608523c57d1a62b870ac8e0e",
     "target_commit": "bef908cb3aaf20210b267551df1210ad881722c5",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/118183",
+    "created_at": "2024-12-06T18:18:55Z",
+    "merged_at": "2024-12-09T18:35:21Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -14169,6 +14463,8 @@
     "source_commit": "fdfe63eb372a01b91a5b43eb5555c52731a69687",
     "target_commit": "e355340162f24705db5e48ea2cf0a867490ae001",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/124403",
+    "created_at": "2025-03-08T09:22:12Z",
+    "merged_at": "2025-03-11T07:12:59Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -14267,6 +14563,8 @@
     "source_commit": "0a5a74c5e9dad3d62a8486e52422be2ae1295e03",
     "target_commit": "5e604e492648a95f7adef067aeb2b9fc2ca4a206",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/133365",
+    "created_at": "2025-08-22T00:02:13Z",
+    "merged_at": "2025-08-28T17:22:19Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -14387,6 +14685,8 @@
     "source_commit": "4ac8d55ff7c5612413e4a45e14a2b39f3e85f3a9",
     "target_commit": "a3bac5f2d4020183019a47d8d64c08123f7ec25d",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/119759",
+    "created_at": "2025-01-08T14:11:42Z",
+    "merged_at": "2025-01-10T09:19:38Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -14441,6 +14741,8 @@
     "source_commit": "edb3818ecc0ff0c34a63dcac533f51cfee4c4443",
     "target_commit": "902352ac82dfa1d0b0a54ef7f0d86d6733691ba5",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/118998",
+    "created_at": "2024-12-18T17:52:32Z",
+    "merged_at": "2024-12-23T15:53:15Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -14462,6 +14764,8 @@
     "source_commit": "26e5373de1db0a9e7d72cbf79b2a4c6bb7d17cfd",
     "target_commit": "761281a81a4002518df11ee62e5b9e34355c8778",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/120546",
+    "created_at": "2025-01-21T17:19:49Z",
+    "merged_at": "2025-01-28T15:18:22Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -14505,6 +14809,8 @@
     "source_commit": "3594ade2a9ce3dac2abda77add51cc88990ce43a",
     "target_commit": "2adcb2d510ac8667f771842572c4b2c8bcaf2992",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/127697",
+    "created_at": "2025-05-05T07:03:03Z",
+    "merged_at": "2025-05-20T06:33:29Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -14581,6 +14887,8 @@
     "source_commit": "7c46556e2137a92e7d92ddf40af0ae5388c1e888",
     "target_commit": "a9973f67256e21340a8b00039531e69b724d0856",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/118626",
+    "created_at": "2024-12-12T21:43:29Z",
+    "merged_at": "2024-12-30T21:57:39Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -14668,6 +14976,8 @@
     "source_commit": "ba5a9c83310ce6fbe27ff251aba00e37fad1d205",
     "target_commit": "4d9b96f4ac1af0cb871f1d3b77169f9f1e83d194",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/123744",
+    "created_at": "2025-02-28T18:14:39Z",
+    "merged_at": "2025-02-28T23:10:08Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -14722,6 +15032,8 @@
     "source_commit": "cc0e53e883ee7e0b136e58a0105103c1a7ffddf9",
     "target_commit": "a6a4623f4a0216b515a8cb323110305504431459",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/118895",
+    "created_at": "2024-12-17T21:45:26Z",
+    "merged_at": "2025-01-07T16:19:07Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -14787,6 +15099,8 @@
     "source_commit": "3c264cff967750ff7cb581defa42b0d69bb31fc6",
     "target_commit": "dc8943ff2d735c9cd71adef644378ca2850db34f",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/133945",
+    "created_at": "2025-09-01T14:18:49Z",
+    "merged_at": "2025-09-02T15:05:09Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -14841,6 +15155,8 @@
     "source_commit": "47e352fda0567a682687fe926927cee3f631ea24",
     "target_commit": "10d682d9aa4b1c2976e1db769ba04cb15256da9e",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/126376",
+    "created_at": "2025-04-06T20:49:07Z",
+    "merged_at": "2025-04-08T07:44:09Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -14939,6 +15255,8 @@
     "source_commit": "078f7ff9f7134a9c3011106e7b742a9fd8f04d56",
     "target_commit": "e38d20c726cffb1ef9563d3146951a5356596464",
     "githubPrUrl": "https://github.com/elastic/elasticsearch/pull/125732",
+    "created_at": "2025-03-26T21:53:28Z",
+    "merged_at": "2025-04-03T17:45:10Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -15004,6 +15322,8 @@
     "source_commit": "d6182becbe155776b159270fe4a5e88d607f0c5e",
     "target_commit": "8c952af20fe791cc0c5d0a59089d3329968b4373",
     "githubPrUrl": "https://github.com/openai/codex/pull/3212",
+    "created_at": "2025-09-05T16:10:16Z",
+    "merged_at": "2025-09-05T17:41:47Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -15091,6 +15411,8 @@
     "source_commit": "2db96c18e72289928e45704a77f96f7bdfaee30f",
     "target_commit": "af112d6365207a5a3f65136c7057d6bb98203c35",
     "githubPrUrl": "https://github.com/ollama/ollama/pull/9379",
+    "created_at": "2025-02-26T22:53:27Z",
+    "merged_at": "2025-03-01T00:10:43Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -15156,6 +15478,8 @@
     "source_commit": "56dc316a57f07fbed80723d1ecd589da0906018e",
     "target_commit": "498792c9be023ebfdaa1e0dbc6ac85c0ff8c75b1",
     "githubPrUrl": "https://github.com/ollama/ollama/pull/9654",
+    "created_at": "2025-03-11T16:56:39Z",
+    "merged_at": "2025-04-16T21:25:55Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -15199,6 +15523,8 @@
     "source_commit": "c2f5d6662ba696b94455eaaa298a797d56fdca5c",
     "target_commit": "0b52f186fb4af8fa7d4f6a71967f922eb6b69cdc",
     "githubPrUrl": "https://github.com/ollama/ollama/pull/10135",
+    "created_at": "2025-04-05T01:29:16Z",
+    "merged_at": "2025-05-05T18:59:26Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -15242,6 +15568,8 @@
     "source_commit": "4ea4d2b18952a104a47079df00ac0bfe4706f3aa",
     "target_commit": "2ed14f2a28867c017426b41a9ff6bfc52c981a43",
     "githubPrUrl": "https://github.com/ollama/ollama/pull/9746",
+    "created_at": "2025-03-13T23:19:30Z",
+    "merged_at": "2025-03-14T05:18:29Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -15472,6 +15800,8 @@
     "source_commit": "92b96d54efd6b49322b7cf046f9a0dc16b00cd0a",
     "target_commit": "b6002f6b6c69370f8c18a9e6c1cafa8463273a6b",
     "githubPrUrl": "https://github.com/ollama/ollama/pull/12185",
+    "created_at": "2025-09-04T22:33:46Z",
+    "merged_at": "2025-09-15T21:33:07Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -15614,6 +15944,8 @@
     "source_commit": "f53f4198c36d0a943de598ad91a20baa9481c5c5",
     "target_commit": "c2d08dd67a9bcf15e52a2f15b1fad888afffcd32",
     "githubPrUrl": "https://github.com/ollama/ollama/pull/8938",
+    "created_at": "2025-02-08T02:40:01Z",
+    "merged_at": "2025-02-24T21:26:35Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -15646,6 +15978,8 @@
     "source_commit": "5809d4d1bc54c3a3a32b38c7cf8a6ed90e91f7db",
     "target_commit": "0729afe8d7067f0e4d69000309ec6f3e24ac3926",
     "githubPrUrl": "https://github.com/mpv-player/mpv/pull/15828",
+    "created_at": "2025-02-08T06:04:00Z",
+    "merged_at": "2025-02-17T16:33:19Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -15744,6 +16078,8 @@
     "source_commit": "5ba7ee513751dd005379a06fb627303e6fe1b3dd",
     "target_commit": "0b0330fa9d5d70c78f36e1010a3b826fa7046387",
     "githubPrUrl": "https://github.com/mpv-player/mpv/pull/16061",
+    "created_at": "2025-03-16T12:41:54Z",
+    "merged_at": "2025-03-31T09:47:52Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -15798,6 +16134,8 @@
     "source_commit": "30869ddb904f800ad1b858ac99c5fb81690f0cb7",
     "target_commit": "dbd327d36fd0dc80ebd6e5517c102a92e31a0836",
     "githubPrUrl": "https://github.com/mpv-player/mpv/pull/16164",
+    "created_at": "2025-03-30T23:50:10Z",
+    "merged_at": "2025-04-02T15:28:50Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -15885,6 +16223,8 @@
     "source_commit": "5ba7ee513751dd005379a06fb627303e6fe1b3dd",
     "target_commit": "ff45a8103e3c5ec3e786b950b4852c2750de936f",
     "githubPrUrl": "https://github.com/mpv-player/mpv/pull/16090",
+    "created_at": "2025-03-22T04:32:31Z",
+    "merged_at": "2025-03-31T18:07:47Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -16027,6 +16367,8 @@
     "source_commit": "605979e790eb0aabdf5e8d6c8a182974697bc3a9",
     "target_commit": "87697a72e333d1468a35d4a3fec388319cc16e2a",
     "githubPrUrl": "https://github.com/ppy/osu/pull/31232",
+    "created_at": "2024-12-22T02:48:31Z",
+    "merged_at": "2025-02-18T05:25:46Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -16059,6 +16401,8 @@
     "source_commit": "19e9bffc11f026ebff2dc2831668e606c701f71f",
     "target_commit": "748ab3d4863f6ea4bf6a3fffccb50e5cd616937b",
     "githubPrUrl": "https://github.com/ppy/osu/pull/33423",
+    "created_at": "2025-06-05T00:57:13Z",
+    "merged_at": "2025-06-13T08:02:31Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -16157,6 +16501,8 @@
     "source_commit": "949ef35a3bda916b24763c435033258a84ba8596",
     "target_commit": "1463502078ae277b3613e02429ecafde921b892b",
     "githubPrUrl": "https://github.com/keycloak/keycloak/pull/41672",
+    "created_at": "2025-08-05T14:11:14Z",
+    "merged_at": "2025-09-09T08:48:54Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -16178,6 +16524,8 @@
     "source_commit": "cac93f7d3dd2a16c959e2a9e9c0d221f7f76a754",
     "target_commit": "2373a483fdeead9f1b5e815015349c6871de8c3a",
     "githubPrUrl": "https://github.com/keycloak/keycloak/pull/37465",
+    "created_at": "2025-02-18T18:40:15Z",
+    "merged_at": "2025-03-12T10:21:34Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -16265,6 +16613,8 @@
     "source_commit": "0f1bdc4e975c4810102d6ad125b3ed2369c90f0b",
     "target_commit": "460f8008f86d3fa8f62da63e26d8bdc306af60b2",
     "githubPrUrl": "https://github.com/keycloak/keycloak/pull/35645",
+    "created_at": "2024-12-05T08:58:04Z",
+    "merged_at": "2024-12-05T13:50:32Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -16352,6 +16702,8 @@
     "source_commit": "602df06191823bfc01828a00c491af41e39da751",
     "target_commit": "79dbba9b179015cfd599ebac63112e34c9d724af",
     "githubPrUrl": "https://github.com/keycloak/keycloak/pull/36457",
+    "created_at": "2025-01-14T15:34:39Z",
+    "merged_at": "2025-02-05T14:13:53Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -16461,6 +16813,8 @@
     "source_commit": "ad511cbc538f1d9727d17cc423420abc50367af4",
     "target_commit": "04ad5d530007517b60e2bf8706542556078d17f7",
     "githubPrUrl": "https://github.com/keycloak/keycloak/pull/40283",
+    "created_at": "2025-06-05T14:26:50Z",
+    "merged_at": "2025-06-13T18:26:07Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -16658,6 +17012,8 @@
     "source_commit": "8521b9952a989d0dac17697278610b053c613528",
     "target_commit": "805c204a9dbfb5b8128de8f70c9f3fbd6d6583f9",
     "githubPrUrl": "https://github.com/keycloak/keycloak/pull/38723",
+    "created_at": "2025-04-07T17:11:40Z",
+    "merged_at": "2025-04-08T10:23:53Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -16778,6 +17134,8 @@
     "source_commit": "b0654c455f57bb9fbc3ea7511809921fed031ce3",
     "target_commit": "21d4538b6f69a47dbd25571ea39a5d2a6fa788ef",
     "githubPrUrl": "https://github.com/keycloak/keycloak/pull/37504",
+    "created_at": "2025-02-19T17:14:42Z",
+    "merged_at": "2025-03-17T11:48:51Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -17019,6 +17377,8 @@
     "source_commit": "7c369e84052aaee15a6dedf8928b5af4c869037b",
     "target_commit": "29e03a6294edfe43b49eba20fe49099cef601d34",
     "githubPrUrl": "https://github.com/bluewave-labs/Checkmate/pull/1897",
+    "created_at": "2025-03-10T20:40:20Z",
+    "merged_at": "2025-03-10T21:03:19Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -17128,6 +17488,8 @@
     "source_commit": "05dd5f7de27ae7f2139714f0bc577484642e2c77",
     "target_commit": "32b54ddf11ea27b8ed85d2139fe38e0dcb7f3d43",
     "githubPrUrl": "https://github.com/bluewave-labs/Checkmate/pull/2883",
+    "created_at": "2025-08-30T23:21:10Z",
+    "merged_at": "2025-08-30T23:21:19Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -17468,6 +17830,8 @@
     "source_commit": "e06b10c4f0088e2966c510d335531f7daed61915",
     "target_commit": "647870557cf275de666557e552e11e9a295b9d4a",
     "githubPrUrl": "https://github.com/symfony/symfony/pull/60956",
+    "created_at": "2025-06-30T04:46:32Z",
+    "merged_at": "2025-06-30T11:30:52Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -17489,6 +17853,8 @@
     "source_commit": "a57c946d3b8d477964da5303fa693a9b7c4e6227",
     "target_commit": "942f8fa5384d34f2b5c9bd1b73a169d8fd049fd5",
     "githubPrUrl": "https://github.com/symfony/symfony/pull/61601",
+    "created_at": "2025-09-03T05:33:42Z",
+    "merged_at": "2025-09-03T15:35:57Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -17532,6 +17898,8 @@
     "source_commit": "0b4d21c3f91dd2cd2cc49739ab31a1457cf001ea",
     "target_commit": "2b9721f04744fb213808f754ac98cd563384b3e5",
     "githubPrUrl": "https://github.com/symfony/symfony/pull/60342",
+    "created_at": "2025-05-04T20:03:17Z",
+    "merged_at": "2025-05-17T07:04:09Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -17586,6 +17954,8 @@
     "source_commit": "c4a8ac301274ccdfc8d0fc87871d557534a8405f",
     "target_commit": "024925dfbeff5daaecdd2cd733cda2825eff1bb7",
     "githubPrUrl": "https://github.com/linera-io/linera-protocol/pull/3075",
+    "created_at": "2024-12-29T17:48:29Z",
+    "merged_at": "2025-01-06T03:22:19Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -17640,6 +18010,8 @@
     "source_commit": "c31634e52d719fdf60694f47812e2f007022ae26",
     "target_commit": "3535ddb83de7dfae5db1732a7f1535031d31380a",
     "githubPrUrl": "https://github.com/linera-io/linera-protocol/pull/4639",
+    "created_at": "2025-09-24T11:07:16Z",
+    "merged_at": "2025-09-25T17:43:31Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -17716,6 +18088,8 @@
     "source_commit": "ad508025a9d05552a1c8ac1ba4e71a0062ebb556",
     "target_commit": "8fb32bb8a463a3b19e291426f83833027739f868",
     "githubPrUrl": "https://github.com/linera-io/linera-protocol/pull/3151",
+    "created_at": "2025-01-20T15:22:34Z",
+    "merged_at": "2025-02-05T16:05:21Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -17737,6 +18111,8 @@
     "source_commit": "09513b064bc823c5525d82c242d9affe0a308e17",
     "target_commit": "f84194cb231ad14a2f03b5ead75e99d64826972f",
     "githubPrUrl": "https://github.com/timescale/timescaledb/pull/8138",
+    "created_at": "2025-05-15T13:08:31Z",
+    "merged_at": "2025-05-21T07:48:48Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -17868,6 +18244,8 @@
     "source_commit": "17fb43d888dbe3b328da6b08b310bc83d3167d39",
     "target_commit": "2568b018719e25f262255626c474a461da38fc21",
     "githubPrUrl": "https://github.com/timescale/timescaledb/pull/7935",
+    "created_at": "2025-04-08T12:51:58Z",
+    "merged_at": "2025-04-11T21:05:38Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -17933,6 +18311,8 @@
     "source_commit": "9382a90adac7a889c1df0d821a12ba1d29c8dcba",
     "target_commit": "5ab9b1295e6bdce4834005e3738074b3a844eeb4",
     "githubPrUrl": "https://github.com/timescale/timescaledb/pull/7632",
+    "created_at": "2025-01-28T23:00:45Z",
+    "merged_at": "2025-02-14T21:01:41Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -17965,6 +18345,8 @@
     "source_commit": "d0fe7370082dbc57d391d5168705909809bd880f",
     "target_commit": "7148e5c7d90c9da819a8ca77b79664fac300ca60",
     "githubPrUrl": "https://github.com/timescale/timescaledb/pull/7915",
+    "created_at": "2025-04-04T18:03:54Z",
+    "merged_at": "2025-04-10T15:57:24Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -18041,6 +18423,8 @@
     "source_commit": "efab2bedc6beb4e1bb01906cba9e0dabd3072f13",
     "target_commit": "d840723278f1d4cecc02ac540385725a1c54ca84",
     "githubPrUrl": "https://github.com/unionlabs/union/pull/3414",
+    "created_at": "2024-12-30T19:20:01Z",
+    "merged_at": "2024-12-30T20:27:42Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -18249,6 +18633,8 @@
     "source_commit": "5bcf4d001f1174ed9e63b7115f10e5dbe1bcca9f",
     "target_commit": "bcfe6f9ded091cd360b3212b6e9f5a58cbcdac5e",
     "githubPrUrl": "https://github.com/langflow-ai/langflow/pull/6044",
+    "created_at": "2025-01-31T16:07:29Z",
+    "merged_at": "2025-02-03T15:22:18Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -18358,6 +18744,8 @@
     "source_commit": "f9b2ce18a4945c04ab786e66e6fc10e4b49e2677",
     "target_commit": "b1cbdbad29eb3fe3895de1663b2e77b3943b1aef",
     "githubPrUrl": "https://github.com/langflow-ai/langflow/pull/5388",
+    "created_at": "2024-12-20T20:14:06Z",
+    "merged_at": "2025-02-11T11:13:36Z",
     "comments": [
       {
         "is_ai_comment": false,
@@ -18401,6 +18789,8 @@
     "source_commit": "d035e41e631f0da97bdc0e93e7afdae78d5e94da",
     "target_commit": "9513d152197e5336fbc00eb6b891f1ffb25ad62d",
     "githubPrUrl": "https://github.com/langflow-ai/langflow/pull/5896",
+    "created_at": "2025-01-23T17:39:28Z",
+    "merged_at": "2025-01-23T23:13:50Z",
     "comments": [
       {
         "is_ai_comment": true,
@@ -18455,6 +18845,8 @@
     "source_commit": "a8f6ee4af97fe594eb2c84b655abc549f6d7c741",
     "target_commit": "623929065f9ae45792afce2eb3185dad353df78e",
     "githubPrUrl": "https://github.com/langflow-ai/langflow/pull/6652",
+    "created_at": "2025-02-16T07:56:39Z",
+    "merged_at": "2025-03-14T12:41:55Z",
     "comments": [
       {
         "is_ai_comment": true,

@@ -123,6 +123,8 @@ The evaluation framework is in the [`evaluation/`](evaluation/) directory, which
     "source_commit": {"type": "string", "description": "Source commit"},
     "target_commit": {"type": "string", "description": "Target commit"},
     "githubPrUrl": {"type": "string", "description": "GitHub PR URL"},
+    "created_at": {"type": "string", "format": "date-time", "description": "PR creation time in UTC (ISO 8601)"},
+    "merged_at": {"type": "string or null", "format": "date-time", "description": "PR merge time in UTC (ISO 8601); null if not merged"},
     "comments": {
       "is_ai_comment": {"type": "boolean", "description": "Whether it's an AI comment"},
       "note": {"type": "string", "description": "Comment content"},

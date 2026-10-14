@@ -124,6 +124,8 @@ cd aacr-bench
     "source_commit":  {"type": "string", "description": "源commit"},
     "target_commit":  {"type": "string", "description": "目标commit"},
     "githubPrUrl":  {"type": "string", "description": "github 的pr地址"},
+    "created_at":  {"type": "string", "format": "date-time", "description": "PR 创建时间（GitHub API 的 UTC ISO 8601 时间）"},
+    "merged_at":  {"type": "string 或 null", "format": "date-time", "description": "PR 合并时间（UTC ISO 8601）；未合并时为 null"},
     "comments": {
       "is_ai_comment": {"type": "boolean", "description": "是否是AI评论"},
       "note": {"type": "string", "description": "评论内容"},
