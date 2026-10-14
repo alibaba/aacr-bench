@@ -39,8 +39,16 @@ USE_MOCK_LLM = (
 # 语义匹配请求计数（含 Mock 与 LLM）
 llm_request_count = 0
 
-# 文件级匹配通道用 asyncio.gather 并发调用裁判模型，限制并发避免突发打满
-_llm_semaphore = asyncio.Semaphore(3)
+# 文件级匹配通道用 asyncio.gather 并发调用裁判模型，限制并发避免突发打满；
+# 并发度由 JUDGE_CONCURRENCY 配置（默认 3），非法值回退默认
+def _judge_concurrency() -> int:
+    try:
+        return max(1, int(os.getenv(config.JUDGE_CONCURRENCY_VAR, "3")))
+    except ValueError:
+        return 3
+
+
+_llm_semaphore = asyncio.Semaphore(_judge_concurrency())
 
 # LLM 客户端延迟初始化，避免 Mock 模式下强依赖网络配置
 _llm_client = None
@@ -186,6 +194,10 @@ async def evaluate_comments(
     for ref_comment in reference_comments:
         if not isinstance(ref_comment, dict):
             continue
+        # 本通道产出的字段由本通道初始化（含无 note 被跳过的评论），构造器不预置
+        ref_comment["line_match"] = False
+        ref_comment["semantic_match"] = False
+        ref_comment["matched_note"] = ""
         ref_note = ref_comment.get("note", "")
         if not ref_note:
             continue
@@ -344,7 +356,7 @@ Your answer:
 async def evaluate_file_level_semantics(
     reference_comments: List[Dict[str, Any]],
     generated_comments: List[Dict[str, Any]],
-) -> tuple[int, List[Dict[str, Any]]]:
+) -> tuple[int, int, List[Dict[str, Any]]]:
     """文件级语义匹配通道（当前默认指标体系）。
 
     按文件路径分组，每条生成评论打包同文件全部参考评论调用一次裁判模型判断
@@ -352,10 +364,12 @@ async def evaluate_file_level_semantics(
     的 file_semantic_match 字段。
 
     Returns:
-        (被覆盖的参考评论总数（去重）, 生成评论命中记录列表)。每条记录包含
-        note / path / from_line / to_line / matched_gt_indices / judge_reason，
-        matched_gt_indices 指向 reference_comments 的下标。落在无参考评论文件
-        下的生成评论也会记录（matched_gt_indices 为空，不调用裁判模型）；
+        (被覆盖的参考评论总数（去重）, 命中未被覆盖 GT 的生成评论数,
+        生成评论命中记录列表)。每条记录包含 note / path / from_line / to_line /
+        matched_gt_indices / judge_reason / hit_new_gt，matched_gt_indices 指向
+        reference_comments 的下标；hit_new_gt 为 False 表示其命中的 GT 已全部被
+        此前（按生成顺序）的评论覆盖，属重复命中，不计入第二个返回值。落在无参考
+        评论文件下的生成评论也会记录（matched_gt_indices 为空，不调用裁判模型）；
         无 note 或无 path 的生成评论不参与评测也不记录。
     """
     ref_by_path: Dict[str, List] = defaultdict(list)
@@ -438,15 +452,31 @@ async def evaluate_file_level_semantics(
     gen_records = [
         entry["record"] for entries in gen_by_path.values() for entry in entries
     ]
-    return len(matched_ref_indices), gen_records
+
+    # 贪心去重：按生成顺序，评论命中的 GT 若已全部被此前评论覆盖则为重复命中，
+    # 不计入命中数（precision 分子），避免重复命中虚高
+    covered_gt_indices: set = set()
+    matched_generated_count = 0
+    for record in gen_records:
+        new_hits = set(record["matched_gt_indices"]) - covered_gt_indices
+        record["hit_new_gt"] = bool(new_hits)
+        if new_hits:
+            matched_generated_count += 1
+            covered_gt_indices.update(record["matched_gt_indices"])
+
+    return len(matched_ref_indices), matched_generated_count, gen_records
 
 
 def compute_cr_statistics(
-    comments: List[Dict[str, Any]], generated_count: int
+    comments: List[Dict[str, Any]],
+    generated_count: int,
+    matched_generated_count: int = 0,
 ) -> Dict[str, Any]:
     """根据评测后的 comments 计算单个样本的统计指标。
 
-    file_semantic_* 为当前默认指标（文件级语义匹配）。
+    file_semantic_* 为当前默认指标（文件级语义匹配）：准确率 = 命中未被覆盖 GT 的
+    生成评论数 / 生成评论总数（重复命中不计，分子由 matched_generated_count 传入），
+    召回率 = 被覆盖的 GT 数 / GT 总数（file_semantic_match_count）。
     Deprecated: line_* / semantic_* 字段属于旧逐条匹配指标，仅在
     --use-deprecated-score 模式下由 evaluate_comments 写入后才有意义。
     """
@@ -472,7 +502,7 @@ def compute_cr_statistics(
         "semantic_match_rate": round(semantic_match_count / generated_count, 3)
         if generated_count
         else 0.0,
-        "file_semantic_match_rate": round(file_semantic_match_count / generated_count, 3)
+        "file_semantic_match_rate": round(matched_generated_count / generated_count, 3)
         if generated_count
         else 0.0,
         "line_recall_rate": round(line_match_count / total_expected, 3) if total_expected else 0.0,

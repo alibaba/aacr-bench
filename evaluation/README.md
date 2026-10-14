@@ -136,7 +136,7 @@ The four config groups in `evaluation/.env` each serve a distinct purpose:
 | OCR Review | `OCR_LLM_URL` / `OCR_LLM_TOKEN` / `OCR_LLM_MODEL` / `OCR_USE_ANTHROPIC` |
 | Claude Review | `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL` |
 | Codex Review | `CODEX_API_KEY` (required) / `CODEX_MODEL` (optional) / `CODEX_GATEWAY_URL` (optional) |
-| Judge (Evaluation) | `JUDGE_BASE_URL` / `JUDGE_API_KEY` / `JUDGE_MODEL` / `JUDGE_USE_MOCK` |
+| Judge (Evaluation) | `JUDGE_BASE_URL` / `JUDGE_API_KEY` / `JUDGE_MODEL` / `JUDGE_USE_MOCK` / `JUDGE_CONCURRENCY` |
 
 > **Codex config written to temporary config.toml**: The pipeline writes `CODEX_MODEL` (and
 > `CODEX_GATEWAY_URL`, if provided) into `/tmp/codex_home.XXXXXX/config.toml` at the start of the
@@ -322,11 +322,14 @@ coverage supported).
 
 - Samples with missing result files are counted in `missing_instances` and **excluded from metric
   denominators** (avoiding treating un-run samples as 0 recall).
-- Default metrics: **precision** (`file_semantic_match_rate`), **recall**
-  (`file_semantic_recall_rate`) and **balanced score** (`balanced_score`, their harmonic mean).
+- Default metrics: **precision** (`file_semantic_match_rate` = generated comments that hit a
+  previously uncovered GT / total generated comments; duplicate hits on already-covered GTs are
+  not counted), **recall** (`file_semantic_recall_rate` = GTs covered / total GTs, deduplicated
+  under one-to-many matching) and **balanced score** (`balanced_score`, their harmonic mean).
 - `eval_res[].generated_comments[]` in the metrics JSON records, for each generated comment, which
-  GTs it hit (`matched_gt_indices` indexes into the sibling `comments` array) and the judge's
-  rationale (`judge_reason`).
+  GTs it hit (`matched_gt_indices` indexes into the sibling `comments` array), the judge's
+  rationale (`judge_reason`), and whether it covered a previously uncovered GT (`hit_new_gt`;
+  false means a duplicate hit, excluded from precision).
 - The legacy metric system (per-comment four-stage matching path → side → line(k) → semantic, with
   semantic/line Precision / Recall / F1) is deprecated and only used with `--use-deprecated-score`.
 

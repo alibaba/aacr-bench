@@ -132,7 +132,7 @@ set -a && source .env && set +a
 | OCR 评审 | `OCR_LLM_URL` / `OCR_LLM_TOKEN` / `OCR_LLM_MODEL` / `OCR_USE_ANTHROPIC` |
 | Claude 评审 | `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL` |
 | Codex 评审 | `CODEX_API_KEY`（必填）/ `CODEX_MODEL`（可选）/ `CODEX_GATEWAY_URL`（可选） |
-| 评测裁判（Judge） | `JUDGE_BASE_URL` / `JUDGE_API_KEY` / `JUDGE_MODEL` / `JUDGE_USE_MOCK` |
+| 评测裁判（Judge） | `JUDGE_BASE_URL` / `JUDGE_API_KEY` / `JUDGE_MODEL` / `JUDGE_USE_MOCK` / `JUDGE_CONCURRENCY` |
 
 > **Codex 配置写入临时 config.toml**：pipeline 会在 review 阶段开始时把
 > `CODEX_MODEL`（以及 `CODEX_GATEWAY_URL`，如提供）写入 `/tmp/codex_home.XXXXXX/config.toml`，
@@ -307,10 +307,13 @@ python -m pipeline run --stage eval --reviewer claude --dataset data/aacr_bench.
 判断覆盖关系（支持一对多）。
 
 - 找不到结果文件的样本计入 `missing_instances`，**不计入指标分母**（避免把没跑的样本算成 0 召回）。
-- 默认输出文件级语义指标体系：**准确率**（`file_semantic_match_rate`）、**召回率**
-  （`file_semantic_recall_rate`）与**平衡分数**（`balanced_score`，即二者调和平均）。
+- 默认输出文件级语义指标体系：**准确率**（`file_semantic_match_rate` = 命中了此前
+  未被覆盖 GT 的生成评论数 / 生成评论总数，重复命中不计）、**召回率**
+  （`file_semantic_recall_rate` = 被覆盖的 GT 数 / GT 总数，一对多下同一 GT 去重）与
+  **平衡分数**（`balanced_score`，即二者调和平均）。
 - metrics JSON 的 `eval_res[].generated_comments[]` 逐条记录每条生成评论命中了哪些 GT
-  （`matched_gt_indices` 指向同条目 `comments` 下标）及裁判理由（`judge_reason`）。
+  （`matched_gt_indices` 指向同条目 `comments` 下标）、裁判理由（`judge_reason`）及是否
+  命中了未被覆盖的 GT（`hit_new_gt`，为 false 即重复命中，不计入准确率）。
 - 旧指标体系（path → side → line(k) → semantic 四阶段逐条匹配的语义/行号两套
   Precision / Recall / F1）已弃用，仅在指定 `--use-deprecated-score` 时使用。
 

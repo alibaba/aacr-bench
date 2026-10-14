@@ -95,9 +95,6 @@ def build_reference_comments(instance: ReviewInstance) -> List[Dict[str, Any]]:
                 "side": ref.side,
                 "from_line": line_range["from_line"],
                 "to_line": line_range["to_line"],
-                "line_match": False,
-                "semantic_match": False,
-                "matched_note": "",
             }
         )
     return comments
@@ -297,16 +294,22 @@ def _base_summary(stats: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _compute_summary(stats: Dict[str, Any]) -> Dict[str, Any]:
-    """文件级语义匹配指标体系（当前默认）：准确率 / 召回率 / 平衡分数。"""
+    """文件级语义匹配指标体系（当前默认）：准确率 / 召回率 / 平衡分数。
+
+    准确率 = 命中了此前未被覆盖 GT 的生成评论数 / 生成评论总数（重复命中不计）；
+    召回率 = 被覆盖的 GT 数 / GT 总数（一对多下同一 GT 去重）。
+    """
     expected = stats["expected_notes"]
     generated = stats["generated_notes"]
-    matched = stats["matched_file_semantic_notes"]
-    precision = round(matched / generated, 3) if generated else 0.0
-    recall = round(matched / expected, 3) if expected else 0.0
+    matched_generated = stats["matched_generated_notes"]
+    matched_gt = stats["matched_file_semantic_notes"]
+    precision = round(matched_generated / generated, 3) if generated else 0.0
+    recall = round(matched_gt / expected, 3) if expected else 0.0
 
     return {
         **_base_summary(stats),
-        "matched_file_semantic_notes": matched,
+        "matched_generated_notes": matched_generated,
+        "matched_file_semantic_notes": matched_gt,
         "file_semantic_match_rate": precision,
         "file_semantic_recall_rate": recall,
         "balanced_score": _compute_balanced_score(precision, recall),
@@ -375,6 +378,7 @@ async def evaluate(
         "matched_line_notes": 0,
         "matched_semantic_notes": 0,
         "matched_file_semantic_notes": 0,
+        "matched_generated_notes": 0,
         "total_duration_seconds": 0.0,
         "total_input_tokens": 0,
         "total_output_tokens": 0,
@@ -392,20 +396,19 @@ async def evaluate(
         generated_count = len([c for c in generated if isinstance(c, dict) and c.get("note")])
 
         gen_match_records: List[Dict[str, Any]] = []
+        matched_generated_count = 0
         if use_deprecated_score:
             if reference:
                 await evaluate_comments(reference, generated, k=line_k)
         else:
-            _, gen_match_records = await evaluate_file_level_semantics(
-                reference, generated
+            # 准确率分子由 judge 返回：命中了未被覆盖 GT 的生成评论数（重复命中不计）
+            _, matched_generated_count, gen_match_records = (
+                await evaluate_file_level_semantics(reference, generated)
             )
-            # 剔除旧逐条匹配字段的默认值，避免在新指标体系的产出中误导消费方
-            for comment in reference:
-                if isinstance(comment, dict):
-                    for key in ("line_match", "semantic_match", "matched_note"):
-                        comment.pop(key, None)
 
-        cr_stats = compute_cr_statistics(reference, generated_count)
+        cr_stats = compute_cr_statistics(
+            reference, generated_count, matched_generated_count
+        )
         stats["evaluated_instances"] += 1
         stats["expected_notes"] += cr_stats["expected_notes"]
         stats["generated_notes"] += generated_count
@@ -416,6 +419,7 @@ async def evaluate(
             stats["matched_file_semantic_notes"] += cr_stats[
                 "file_semantic_match_count"
             ]
+            stats["matched_generated_notes"] += matched_generated_count
 
         # 累计执行用时和 token 消耗
         usage = _extract_usage_from_result(results_dir, reviewer, instance.instance_id)
@@ -494,7 +498,8 @@ def print_summary(reviewer: str, result_data: Dict[str, Any]) -> None:
         print(f"行号 Recall:     {summary.get('line_recall_rate')}")
         print(f"行号 F1:         {summary.get('line_f1')}")
     else:
-        print(f"文件级语义匹配数:                   {summary.get('matched_file_semantic_notes')}")
+        print(f"命中生成评论数 (precision 分子):    {summary.get('matched_generated_notes')}")
+        print(f"被覆盖参考评论数 (recall 分子):     {summary.get('matched_file_semantic_notes')}")
         print("-" * 56)
         print(f"准确率 (Precision):  {summary.get('file_semantic_match_rate')}")
         print(f"召回率 (Recall):     {summary.get('file_semantic_recall_rate')}")
