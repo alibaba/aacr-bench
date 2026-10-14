@@ -233,6 +233,7 @@ def run_eval_stage(
     line_k: int,
     limit_for_eval: int | None,
     eval_rounds: int = 1,
+    use_deprecated_score: bool = False,
 ) -> Dict[str, Any]:
     """执行评测阶段：可多轮评测后求平均指标。
 
@@ -241,6 +242,10 @@ def run_eval_stage(
     控制台打印的汇总为平均值。
     """
     log(f"语义裁判模式: {evaluate.judge_mode_description()}")
+    if use_deprecated_score:
+        log("评分模式: deprecated（旧逐条匹配指标体系，已弃用，将在后续版本移除）")
+    else:
+        log("评分模式: 文件级语义匹配（准确率 / 召回率 / 平衡分数）")
     if eval_rounds > 1:
         log(f"评测轮数: {eval_rounds}（各轮独立评测后取平均）")
 
@@ -258,6 +263,7 @@ def run_eval_stage(
                 line_k=line_k,
                 limit=limit_for_eval,
                 round_label=round_label,
+                use_deprecated_score=use_deprecated_score,
             )
         )
         all_results.append(result_data)
@@ -273,7 +279,7 @@ def run_eval_stage(
     with avg_path.open("w", encoding="utf-8") as handle:
         json.dump(average_data, handle, ensure_ascii=False, indent=2)
     log(f"多轮平均指标已保存到: {avg_path}")
-    _print_average_summary(reviewer, average_summary, eval_rounds)
+    _print_average_summary(reviewer, average_summary, eval_rounds, use_deprecated_score)
     return average_data
 
 
@@ -291,17 +297,28 @@ def _average_summaries(summaries: List[Dict[str, Any]]) -> Dict[str, Any]:
     return averaged
 
 
-def _print_average_summary(reviewer: str, summary: Dict[str, Any], rounds: int) -> None:
+def _print_average_summary(
+    reviewer: str,
+    summary: Dict[str, Any],
+    rounds: int,
+    use_deprecated_score: bool = False,
+) -> None:
     """打印多轮平均汇总。"""
     print("\n" + "=" * 56)
-    print(f"评测汇总（{reviewer}）— {rounds} 轮平均")
+    print(f"评测汇总（{reviewer}）— {rounds} 轮平均"
+          + (" [deprecated 评分模式]" if use_deprecated_score else ""))
     print("=" * 56)
-    print(f"语义 Precision:  {summary.get('semantic_match_rate')}")
-    print(f"语义 Recall:     {summary.get('semantic_recall_rate')}")
-    print(f"语义 F1:         {summary.get('semantic_f1')}")
-    print(f"行号 Precision:  {summary.get('line_match_rate')}")
-    print(f"行号 Recall:     {summary.get('line_recall_rate')}")
-    print(f"行号 F1:         {summary.get('line_f1')}")
+    if use_deprecated_score:
+        print(f"语义 Precision:  {summary.get('semantic_match_rate')}")
+        print(f"语义 Recall:     {summary.get('semantic_recall_rate')}")
+        print(f"语义 F1:         {summary.get('semantic_f1')}")
+        print(f"行号 Precision:  {summary.get('line_match_rate')}")
+        print(f"行号 Recall:     {summary.get('line_recall_rate')}")
+        print(f"行号 F1:         {summary.get('line_f1')}")
+    else:
+        print(f"准确率 (Precision):  {summary.get('file_semantic_match_rate')}")
+        print(f"召回率 (Recall):     {summary.get('file_semantic_recall_rate')}")
+        print(f"平衡分数:            {summary.get('balanced_score')}")
     print("=" * 56)
 
 
@@ -335,6 +352,7 @@ def run_pipeline(args) -> int:
             line_k=args.line_k,
             limit_for_eval=None,
             eval_rounds=args.eval_rounds,
+            use_deprecated_score=args.use_deprecated_score,
         )
 
     if args.stage == "eval":
@@ -428,6 +446,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         help="评测阶段执行轮数（默认 1）；多轮时各轮独立评测后取数值平均作为最终指标",
+    )
+    run_parser.add_argument(
+        "--use-deprecated-score",
+        action="store_true",
+        help="使用已弃用的旧指标体系（逐条 line/semantic 匹配的 P/R/F1）；"
+        "默认使用文件级语义匹配指标（准确率 / 召回率 / 平衡分数）",
     )
     run_parser.add_argument(
         "--preview",

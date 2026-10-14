@@ -1,7 +1,7 @@
-"""评测核心：参考评论与生成评论的四阶段匹配 + 指标统计 + 语义判定。
+"""评测核心：参考评论与生成评论的匹配 + 指标统计 + 语义判定。
 
 本模块自包含，不依赖框架外的任何资源。语义匹配支持两种模式：
-- LLM 模式：调用裁判模型判断两条评论是否表达同一关注点 / 建议；
+- LLM 模式：调用裁判模型判断评论是否表达同一关注点 / 建议；
 - Mock 模式：用本地文本相似度近似（零依赖、零成本，仅用于流程验证）。
 
 配置变量名统一由 config 提供（JUDGE_BASE_URL / JUDGE_API_KEY / JUDGE_MODEL /
@@ -9,15 +9,24 @@ JUDGE_USE_MOCK），本模块直接读取，不再经过中间映射：
   JUDGE_USE_MOCK=true 或缺少 JUDGE_API_KEY  -> Mock 模式
   否则                                       -> LLM 模式（JUDGE_BASE_URL / JUDGE_API_KEY / JUDGE_MODEL）
 
-匹配按 path -> side -> line(k) -> semantic 四个阶段进行，任一阶段不通过即跳过候选。
+两条匹配通道：
+- evaluate_file_level_semantics（当前默认）：按文件分组，每条生成评论打包同文件
+  全部参考评论调用一次裁判模型判断覆盖关系，支持一对多。
+- evaluate_comments（Deprecated）：path -> side -> line(k) -> semantic 四阶段
+  逐条匹配，仅在 --use-deprecated-score 时使用。
 """
 from __future__ import annotations
 
+import asyncio
 import difflib
+import json
 import logging
 import os
 import re
+from collections import defaultdict
 from typing import Any, Dict, List
+
+from typing_extensions import deprecated
 
 import config
 
@@ -29,6 +38,9 @@ USE_MOCK_LLM = (
 
 # 语义匹配请求计数（含 Mock 与 LLM）
 llm_request_count = 0
+
+# 文件级匹配通道用 asyncio.gather 并发调用裁判模型，限制并发避免突发打满
+_llm_semaphore = asyncio.Semaphore(3)
 
 # LLM 客户端延迟初始化，避免 Mock 模式下强依赖网络配置
 _llm_client = None
@@ -62,8 +74,16 @@ def _mock_semantic_match(reference_note: str, generated_note: str) -> bool:
     return sequence_ratio >= 0.4 or jaccard >= 0.3
 
 
+@deprecated(
+    "旧逐条匹配通道的判定函数，仅在 --use-deprecated-score 时使用；"
+    "文件级通道用 match_llm_file_level"
+)
 async def match_semantic(reference_note: str, generated_note: str) -> Dict[str, Any]:
-    """判断两条评论是否表达相同的关注点或建议。"""
+    """判断两条评论是否表达相同的关注点或建议。
+
+    Deprecated: 旧逐条匹配通道的判定函数，仅被 evaluate_comments 使用；
+    文件级通道的判定见 match_llm_file_level。
+    """
     global llm_request_count
     llm_request_count += 1
 
@@ -141,12 +161,19 @@ def _strip_thinking_tags(text: str) -> str:
     return cleaned.strip()
 
 
+@deprecated(
+    "旧逐条匹配通道，仅在 --use-deprecated-score 时使用，将在后续版本移除；"
+    "请改用 evaluate_file_level_semantics"
+)
 async def evaluate_comments(
     reference_comments: List[Dict[str, Any]],
     generated_comments: List[Dict[str, Any]],
     k: int = 1,
 ) -> List[Dict[str, Any]]:
     """对单个样本的参考评论逐条评测。
+
+    Deprecated: 旧逐条匹配通道，仅在 --use-deprecated-score 时使用，将在后续
+    版本移除；当前默认使用 evaluate_file_level_semantics。
 
     遍历每条参考评论，在生成评论中按 path -> side -> line(k) -> semantic 依次过滤，
     原地写入参考评论的 line_match / semantic_match / matched_note 字段。
@@ -229,10 +256,200 @@ async def evaluate_comments(
     return reference_comments
 
 
+async def match_llm_file_level(
+    gen_note: str,
+    gen_lines: str,
+    ref_notes: List[str],
+    ref_lines: List[str],
+    file_path: str,
+) -> Dict[str, Any]:
+    """文件级语义匹配：一条生成评论对同文件全部参考评论，返回覆盖的参考编号。
+
+    返回 {"matched": [1-based 编号...], "reason": str}；Mock 模式下退化为
+    同文件内逐对本地相似度判定，不调用 LLM。
+    """
+    global llm_request_count
+    llm_request_count += 1
+
+    if USE_MOCK_LLM:
+        matched = [
+            i + 1
+            for i, ref_note in enumerate(ref_notes)
+            if _mock_semantic_match(ref_note, gen_note)
+        ]
+        return {"matched": matched, "reason": f"[mock] matched={matched}"}
+
+    numbered_refs = "\n".join(
+        f"{i + 1}. [L{ref_lines[i]}] {note}" for i, note in enumerate(ref_notes)
+    )
+
+    prompt = f"""
+-Role-
+
+You are an expert code reviewer comparing review comments for semantic equivalence.
+
+-Task-
+
+Given a Generated Comment and a numbered list of Reference Comments (all from the same file: {file_path}), determine which Reference Comments express the same concern or suggestion as the Generated Comment.
+
+Focus solely on semantic equivalence of the underlying issue — ignore differences in wording, tone, formatting, or exact line numbers. If the Generated Comment addresses the same core problem as a Reference Comment, include that Reference Comment's number.
+
+-Generated Comment-
+[L{gen_lines}] {gen_note}
+
+-Reference Comments-
+{numbered_refs}
+
+-Output-
+
+For each Reference Comment, briefly state whether it matches and why (one line each).
+Then return a JSON array of matched numbers on the LAST line. If none match, return [].
+
+Example:
+1. Match — both flag the uninitialized variable risk
+2. No match — ref discusses naming, generated discusses null check
+3. Match — same concern about missing error handling
+
+[1, 3]
+
+Your answer:
+"""
+
+    async with _llm_semaphore:
+        try:
+            response = await _get_llm_client().chat.completions.create(
+                model=os.getenv(config.JUDGE_MODEL_VAR, "file_level_judge_model"),
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                max_tokens=3000,
+                top_p=0.95,
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            )
+            result_text = (response.choices[0].message.content or "").strip()
+            matches = re.findall(r"\[[\d,\s]*\]", result_text)
+            if matches:
+                indices = json.loads(matches[-1])
+                valid_indices = [
+                    i
+                    for i in indices
+                    if isinstance(i, int) and 1 <= i <= len(ref_notes)
+                ]
+                return {"matched": valid_indices, "reason": result_text}
+            return {"matched": [], "reason": result_text}
+        except Exception as error:  # noqa: BLE001 - 单条判定失败不应中断整体评测
+            logging.error("文件级裁判模型调用失败: %s", error)
+            return {"matched": [], "reason": f"评估过程出错: {error}"}
+
+
+async def evaluate_file_level_semantics(
+    reference_comments: List[Dict[str, Any]],
+    generated_comments: List[Dict[str, Any]],
+) -> tuple[int, List[Dict[str, Any]]]:
+    """文件级语义匹配通道（当前默认指标体系）。
+
+    按文件路径分组，每条生成评论打包同文件全部参考评论调用一次裁判模型判断
+    覆盖关系，支持一对多（一条生成评论可覆盖多条参考评论）。原地写入参考评论
+    的 file_semantic_match 字段。
+
+    Returns:
+        (被覆盖的参考评论总数（去重）, 生成评论命中记录列表)。每条记录包含
+        note / path / from_line / to_line / matched_gt_indices / judge_reason，
+        matched_gt_indices 指向 reference_comments 的下标。落在无参考评论文件
+        下的生成评论也会记录（matched_gt_indices 为空，不调用裁判模型）；
+        无 note 或无 path 的生成评论不参与评测也不记录。
+    """
+    ref_by_path: Dict[str, List] = defaultdict(list)
+    for idx, ref in enumerate(reference_comments):
+        if not isinstance(ref, dict):
+            continue
+        ref_note = ref.get("note", "")
+        if not ref_note:
+            continue
+        ref_note_cleaned = _strip_thinking_tags(ref_note)
+        if not ref_note_cleaned:
+            continue
+        path = _normalize_path(ref.get("path", ""))
+        if not path:
+            continue
+        from_line = ref.get("from_line")
+        to_line = ref.get("to_line")
+        line_str = f"{from_line}-{to_line}" if from_line and to_line else "?"
+        ref_by_path[path].append((idx, ref_note_cleaned, line_str))
+
+    gen_by_path: Dict[str, List] = defaultdict(list)
+    for gen in generated_comments:
+        if not isinstance(gen, dict):
+            continue
+        gen_note = gen.get("note", "")
+        if not gen_note:
+            continue
+        gen_note_cleaned = _strip_thinking_tags(gen_note)
+        if not gen_note_cleaned:
+            continue
+        path = _normalize_path(gen.get("path", ""))
+        if not path:
+            continue
+        from_line = gen.get("from_line")
+        to_line = gen.get("to_line")
+        line_str = f"{from_line}-{to_line}" if from_line and to_line else "?"
+        gen_by_path[path].append(
+            {
+                "note_cleaned": gen_note_cleaned,
+                "line_str": line_str,
+                "record": {
+                    "note": gen_note,
+                    "path": path,
+                    "from_line": from_line,
+                    "to_line": to_line,
+                    "matched_gt_indices": [],
+                    "judge_reason": "",
+                },
+            }
+        )
+
+    matched_ref_indices: set = set()
+
+    async def _file_level_task(entry: Dict[str, Any], ref_list: List, path: str):
+        result = await match_llm_file_level(
+            entry["note_cleaned"],
+            entry["line_str"],
+            [note for _, note, _ in ref_list],
+            [lines for _, _, lines in ref_list],
+            path,
+        )
+        # LLM 返回的编号是 ref_list 内的 1-based 序号，映射回 reference_comments 下标
+        matched = [ref_list[num - 1][0] for num in result["matched"]]
+        return entry["record"], matched, str(result.get("reason", ""))
+
+    tasks = []
+    for path, ref_list in ref_by_path.items():
+        for entry in gen_by_path.get(path, []):
+            tasks.append(_file_level_task(entry, ref_list, path))
+
+    for record, matched, reason in await asyncio.gather(*tasks):
+        record["matched_gt_indices"] = matched
+        record["judge_reason"] = reason[:500]
+        matched_ref_indices.update(matched)
+
+    for idx, ref in enumerate(reference_comments):
+        if isinstance(ref, dict):
+            ref["file_semantic_match"] = idx in matched_ref_indices
+
+    gen_records = [
+        entry["record"] for entries in gen_by_path.values() for entry in entries
+    ]
+    return len(matched_ref_indices), gen_records
+
+
 def compute_cr_statistics(
     comments: List[Dict[str, Any]], generated_count: int
 ) -> Dict[str, Any]:
-    """根据评测后的 comments 计算单个样本的统计指标。"""
+    """根据评测后的 comments 计算单个样本的统计指标。
+
+    file_semantic_* 为当前默认指标（文件级语义匹配）。
+    Deprecated: line_* / semantic_* 字段属于旧逐条匹配指标，仅在
+    --use-deprecated-score 模式下由 evaluate_comments 写入后才有意义。
+    """
     total_expected = len([c for c in comments if isinstance(c, dict) and c.get("note")])
     line_match_count = sum(
         1 for c in comments if isinstance(c, dict) and c.get("line_match", False)
@@ -240,17 +457,29 @@ def compute_cr_statistics(
     semantic_match_count = sum(
         1 for c in comments if isinstance(c, dict) and c.get("semantic_match", False)
     )
+    file_semantic_match_count = sum(
+        1
+        for c in comments
+        if isinstance(c, dict) and c.get("file_semantic_match", False)
+    )
     return {
         "expected_notes": total_expected,
         "generated_notes": generated_count,
         "line_match_count": line_match_count,
         "semantic_match_count": semantic_match_count,
+        "file_semantic_match_count": file_semantic_match_count,
         "line_match_rate": round(line_match_count / generated_count, 3) if generated_count else 0.0,
         "semantic_match_rate": round(semantic_match_count / generated_count, 3)
         if generated_count
         else 0.0,
+        "file_semantic_match_rate": round(file_semantic_match_count / generated_count, 3)
+        if generated_count
+        else 0.0,
         "line_recall_rate": round(line_match_count / total_expected, 3) if total_expected else 0.0,
         "semantic_recall_rate": round(semantic_match_count / total_expected, 3)
+        if total_expected
+        else 0.0,
+        "file_semantic_recall_rate": round(file_semantic_match_count / total_expected, 3)
         if total_expected
         else 0.0,
     }

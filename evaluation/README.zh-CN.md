@@ -214,9 +214,10 @@ python -m pipeline run --reviewer {ocr|claude|codex} --dataset <标准JSONL> [op
 | `--results-dir` | `results/<benchmark>/<reviewer>/<run_id>` | 直接指定结果目录（高级用法，绕过 run 机制）；缺省按 dataset 自动推导 |
 | `--run-id` | 时间戳 | 本次 run 的目录名（如 `baseline`、`v2`）；review 不传则自动用时间戳命名；**eval 阶段必须显式指定** |
 | `--limit` | 全部 | 只处理标准数据集的前 N 条（数据集的随机性已在转换阶段决定，见上方转换器 `--seed`） |
-| `--line-k` | `1` | 评测行号匹配容差（重叠或距离 ≤ k 即命中） |
+| `--line-k` | `1` | 评测行号匹配容差（重叠或距离 ≤ k 即命中）；仅 deprecated 评分模式有效 |
 | `--timeout-minutes` | `30` | 单条样本评审超时 |
 | `--eval-rounds` | `1` | 评测阶段执行轮数；多轮时各轮独立评测后取数值平均作为最终指标 |
+| `--use-deprecated-score` | 关 | 使用已弃用的旧指标体系（逐条 line/semantic 匹配的 P/R/F1）；默认使用文件级语义匹配指标（准确率 / 召回率 / 平衡分数） |
 | `--ocr-command` | `ocr` | OCR 评审器可执行文件路径；可指定本地 release 包路径（如 `./ocr-v2.0.0`），仅 ocr 评审器有效 |
 | `--max-tools` | `30` | OCR 每个文件最大工具调用轮数（控制单文件评审深度），仅 ocr 评审器有效 |
 | `--concurrency` | `1` | 评审阶段并发的 repo 组数（`1`=完全串行）；详见下方「并发评审」 |
@@ -302,10 +303,16 @@ python -m pipeline run --stage eval --reviewer claude --dataset data/aacr_bench.
 ### 执行评测（evaluate.py + judge.py）
 
 按 `instance_id` **精确定位**结果文件（`<safe_id>.json`），由本地 `judge.py` 做
-四阶段匹配（path → side → line(k) → semantic）：
+**文件级语义匹配**：按文件分组，每条生成评论打包同文件全部参考评论调用一次裁判模型
+判断覆盖关系（支持一对多）。
 
 - 找不到结果文件的样本计入 `missing_instances`，**不计入指标分母**（避免把没跑的样本算成 0 召回）。
-- 同时输出**语义**与**行号**两套 Precision / Recall / F1。
+- 默认输出文件级语义指标体系：**准确率**（`file_semantic_match_rate`）、**召回率**
+  （`file_semantic_recall_rate`）与**平衡分数**（`balanced_score`，即二者调和平均）。
+- metrics JSON 的 `eval_res[].generated_comments[]` 逐条记录每条生成评论命中了哪些 GT
+  （`matched_gt_indices` 指向同条目 `comments` 下标）及裁判理由（`judge_reason`）。
+- 旧指标体系（path → side → line(k) → semantic 四阶段逐条匹配的语义/行号两套
+  Precision / Recall / F1）已弃用，仅在指定 `--use-deprecated-score` 时使用。
 
 `note`（语义比对文本）映射：参考用 `text`，OCR 用 `content`，Claude 用
 `summary + failure_scenario`，Codex 用 `summary + description`（语义扩展为

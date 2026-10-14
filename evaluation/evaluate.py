@@ -1,6 +1,8 @@
-"""评测阶段：把标准参考数据与评审结果逐样本比对，计算 P/R/F1。
+"""评测阶段：把标准参考数据与评审结果逐样本比对，计算评测指标。
 
-匹配与指标统计由本地的 judge 模块完成（path -> side -> line(k) -> semantic 四阶段）。
+默认使用文件级语义匹配指标体系（准确率 / 召回率 / 平衡分数），由 judge 模块的
+evaluate_file_level_semantics 完成匹配；传入 --use-deprecated-score 时改用旧
+逐条匹配指标体系（path -> side -> line(k) -> semantic 四阶段的 P/R/F1，已弃用）。
 
 裁判模型（LLM as a Judge）与 OCR/Claude 解耦：在 evaluation/.env 用
 JUDGE_BASE_URL / JUDGE_API_KEY / JUDGE_MODEL / JUDGE_USE_MOCK 配置，
@@ -30,6 +32,7 @@ from typing import Any, Dict, List, Optional
 
 import config
 from schema import ReviewInstance
+from typing_extensions import deprecated
 
 
 def _bootstrap_judge_env() -> None:
@@ -55,6 +58,7 @@ from judge import (  # noqa: E402
     USE_MOCK_LLM,
     compute_cr_statistics,
     evaluate_comments,
+    evaluate_file_level_semantics,
     print_llm_request_statistics,
 )
 
@@ -262,40 +266,26 @@ def _extract_usage_from_result(
     }
 
 
-def _compute_f1(precision: float, recall: float) -> float:
+def _compute_balanced_score(precision: float, recall: float) -> float:
+    """准确率与召回率的调和平均（即 F1 公式，新指标体系称平衡分数）。"""
     if (precision + recall) <= 0:
         return 0.0
     return round(2 * precision * recall / (precision + recall), 3)
 
 
-def _compute_summary(stats: Dict[str, Any]) -> Dict[str, Any]:
-    expected = stats["expected_notes"]
-    generated = stats["generated_notes"]
-    sem_p = round(stats["matched_semantic_notes"] / generated, 3) if generated else 0.0
-    line_p = round(stats["matched_line_notes"] / generated, 3) if generated else 0.0
-    sem_r = round(stats["matched_semantic_notes"] / expected, 3) if expected else 0.0
-    line_r = round(stats["matched_line_notes"] / expected, 3) if expected else 0.0
-
+def _base_summary(stats: Dict[str, Any]) -> Dict[str, Any]:
+    """两套指标体系共用的样本量与用量统计字段。"""
     evaluated = stats["evaluated_instances"]
     total_duration = stats.get("total_duration_seconds", 0)
     total_input_tokens = stats.get("total_input_tokens", 0)
     total_output_tokens = stats.get("total_output_tokens", 0)
-
     return {
         "total_instances": stats["total_instances"],
         "candidate_instances": stats["candidate_instances"],
         "evaluated_instances": evaluated,
         "missing_instances": stats["missing_instances"],
-        "expected_notes": expected,
-        "generated_notes": generated,
-        "matched_line_notes": stats["matched_line_notes"],
-        "matched_semantic_notes": stats["matched_semantic_notes"],
-        "semantic_match_rate": sem_p,
-        "line_match_rate": line_p,
-        "semantic_recall_rate": sem_r,
-        "line_recall_rate": line_r,
-        "semantic_f1": _compute_f1(sem_p, sem_r),
-        "line_f1": _compute_f1(line_p, line_r),
+        "expected_notes": stats["expected_notes"],
+        "generated_notes": stats["generated_notes"],
         "total_duration_seconds": round(total_duration, 2),
         "avg_duration_seconds": round(total_duration / evaluated, 2) if evaluated else 0,
         "total_input_tokens": total_input_tokens,
@@ -303,6 +293,53 @@ def _compute_summary(stats: Dict[str, Any]) -> Dict[str, Any]:
         "total_tokens": total_input_tokens + total_output_tokens,
         "avg_input_tokens": round(total_input_tokens / evaluated) if evaluated else 0,
         "avg_output_tokens": round(total_output_tokens / evaluated) if evaluated else 0,
+    }
+
+
+def _compute_summary(stats: Dict[str, Any]) -> Dict[str, Any]:
+    """文件级语义匹配指标体系（当前默认）：准确率 / 召回率 / 平衡分数。"""
+    expected = stats["expected_notes"]
+    generated = stats["generated_notes"]
+    matched = stats["matched_file_semantic_notes"]
+    precision = round(matched / generated, 3) if generated else 0.0
+    recall = round(matched / expected, 3) if expected else 0.0
+
+    return {
+        **_base_summary(stats),
+        "matched_file_semantic_notes": matched,
+        "file_semantic_match_rate": precision,
+        "file_semantic_recall_rate": recall,
+        "balanced_score": _compute_balanced_score(precision, recall),
+    }
+
+
+@deprecated(
+    "旧逐条匹配指标体系（语义/行号 P/R/F1），仅在 --use-deprecated-score 时使用，"
+    "将在后续版本移除；请改用 _compute_summary"
+)
+def _compute_summary_deprecated(stats: Dict[str, Any]) -> Dict[str, Any]:
+    """Deprecated: 旧逐条匹配指标体系（语义/行号 P/R/F1）。
+
+    仅在 --use-deprecated-score 时使用，将在后续版本移除；新流程用
+    _compute_summary（文件级语义匹配指标）。
+    """
+    expected = stats["expected_notes"]
+    generated = stats["generated_notes"]
+    sem_p = round(stats["matched_semantic_notes"] / generated, 3) if generated else 0.0
+    line_p = round(stats["matched_line_notes"] / generated, 3) if generated else 0.0
+    sem_r = round(stats["matched_semantic_notes"] / expected, 3) if expected else 0.0
+    line_r = round(stats["matched_line_notes"] / expected, 3) if expected else 0.0
+
+    return {
+        **_base_summary(stats),
+        "matched_line_notes": stats["matched_line_notes"],
+        "matched_semantic_notes": stats["matched_semantic_notes"],
+        "semantic_match_rate": sem_p,
+        "line_match_rate": line_p,
+        "semantic_recall_rate": sem_r,
+        "line_recall_rate": line_r,
+        "semantic_f1": _compute_balanced_score(sem_p, sem_r),
+        "line_f1": _compute_balanced_score(line_p, line_r),
     }
 
 
@@ -314,10 +351,13 @@ async def evaluate(
     line_k: int = 1,
     limit: Optional[int] = None,
     round_label: str = "",
+    use_deprecated_score: bool = False,
 ) -> Dict[str, Any]:
     """对某个评审器的结果目录计算评测指标，返回并落盘结果数据。
 
     round_label: 多轮评测时传入如 "_round_1" 用于区分文件名；单轮为空串。
+    use_deprecated_score: True 时使用旧逐条匹配指标体系（已弃用）；
+        默认 False，使用文件级语义匹配指标体系（准确率/召回率/平衡分数）。
     """
     if not Path(results_dir).is_dir():
         raise FileNotFoundError(f"结果目录不存在: {results_dir}")
@@ -334,6 +374,7 @@ async def evaluate(
         "generated_notes": 0,
         "matched_line_notes": 0,
         "matched_semantic_notes": 0,
+        "matched_file_semantic_notes": 0,
         "total_duration_seconds": 0.0,
         "total_input_tokens": 0,
         "total_output_tokens": 0,
@@ -350,15 +391,31 @@ async def evaluate(
         reference = build_reference_comments(instance)
         generated_count = len([c for c in generated if isinstance(c, dict) and c.get("note")])
 
-        if reference:
-            await evaluate_comments(reference, generated, k=line_k)
+        gen_match_records: List[Dict[str, Any]] = []
+        if use_deprecated_score:
+            if reference:
+                await evaluate_comments(reference, generated, k=line_k)
+        else:
+            _, gen_match_records = await evaluate_file_level_semantics(
+                reference, generated
+            )
+            # 剔除旧逐条匹配字段的默认值，避免在新指标体系的产出中误导消费方
+            for comment in reference:
+                if isinstance(comment, dict):
+                    for key in ("line_match", "semantic_match", "matched_note"):
+                        comment.pop(key, None)
 
         cr_stats = compute_cr_statistics(reference, generated_count)
         stats["evaluated_instances"] += 1
         stats["expected_notes"] += cr_stats["expected_notes"]
         stats["generated_notes"] += generated_count
-        stats["matched_line_notes"] += cr_stats["line_match_count"]
-        stats["matched_semantic_notes"] += cr_stats["semantic_match_count"]
+        if use_deprecated_score:
+            stats["matched_line_notes"] += cr_stats["line_match_count"]
+            stats["matched_semantic_notes"] += cr_stats["semantic_match_count"]
+        else:
+            stats["matched_file_semantic_notes"] += cr_stats[
+                "file_semantic_match_count"
+            ]
 
         # 累计执行用时和 token 消耗
         usage = _extract_usage_from_result(results_dir, reviewer, instance.instance_id)
@@ -367,13 +424,14 @@ async def evaluate(
             stats["total_input_tokens"] += usage["input_tokens"]
             stats["total_output_tokens"] += usage["output_tokens"]
 
-        eval_results.append(
-            {
-                "instance_id": instance.instance_id,
-                "repo": instance.repo,
-                "comments": reference,
-            }
-        )
+        entry: Dict[str, Any] = {
+            "instance_id": instance.instance_id,
+            "repo": instance.repo,
+            "comments": reference,
+        }
+        if not use_deprecated_score:
+            entry["generated_comments"] = gen_match_records
+        eval_results.append(entry)
 
     stats["missing_instances"] = len(missing_ids)
     if missing_ids:
@@ -384,7 +442,11 @@ async def evaluate(
             len(missing_ids),
         )
 
-    summary = _compute_summary(stats)
+    summary = (
+        _compute_summary_deprecated(stats)
+        if use_deprecated_score
+        else _compute_summary(stats)
+    )
     result_data = {
         "ex_info": {
             "start_time": datetime.now().isoformat(),
@@ -392,6 +454,7 @@ async def evaluate(
             "reviewer": reviewer,
             "line_k": line_k,
             "limit": limit,
+            "score_mode": "deprecated" if use_deprecated_score else "file_semantic",
             "missing_instance_ids": missing_ids,
         },
         "summary": summary,
@@ -408,8 +471,10 @@ async def evaluate(
 
 def print_summary(reviewer: str, result_data: Dict[str, Any]) -> None:
     summary = result_data.get("summary", {})
+    score_mode = result_data.get("ex_info", {}).get("score_mode", "file_semantic")
+    deprecated = score_mode == "deprecated"
     print("\n" + "=" * 56)
-    print(f"评测汇总（{reviewer}）")
+    print(f"评测汇总（{reviewer}）" + (" [deprecated 评分模式]" if deprecated else ""))
     print("=" * 56)
     print(f"数据集总样本 (total_instances):     {summary.get('total_instances')}")
     print(f"候选样本数   (candidate_instances): {summary.get('candidate_instances')}")
@@ -417,15 +482,23 @@ def print_summary(reviewer: str, result_data: Dict[str, Any]) -> None:
     print(f"缺失样本数   (missing_instances):   {summary.get('missing_instances')}")
     print(f"参考评论总数 (expected_notes):      {summary.get('expected_notes')}")
     print(f"生成评论总数 (generated_notes):     {summary.get('generated_notes')}")
-    print(f"语义匹配数:                         {summary.get('matched_semantic_notes')}")
-    print(f"行号匹配数:                         {summary.get('matched_line_notes')}")
     print("-" * 56)
-    print(f"语义 Precision:  {summary.get('semantic_match_rate')}")
-    print(f"语义 Recall:     {summary.get('semantic_recall_rate')}")
-    print(f"语义 F1:         {summary.get('semantic_f1')}")
-    print(f"行号 Precision:  {summary.get('line_match_rate')}")
-    print(f"行号 Recall:     {summary.get('line_recall_rate')}")
-    print(f"行号 F1:         {summary.get('line_f1')}")
+    if deprecated:
+        print(f"语义匹配数:                         {summary.get('matched_semantic_notes')}")
+        print(f"行号匹配数:                         {summary.get('matched_line_notes')}")
+        print("-" * 56)
+        print(f"语义 Precision:  {summary.get('semantic_match_rate')}")
+        print(f"语义 Recall:     {summary.get('semantic_recall_rate')}")
+        print(f"语义 F1:         {summary.get('semantic_f1')}")
+        print(f"行号 Precision:  {summary.get('line_match_rate')}")
+        print(f"行号 Recall:     {summary.get('line_recall_rate')}")
+        print(f"行号 F1:         {summary.get('line_f1')}")
+    else:
+        print(f"文件级语义匹配数:                   {summary.get('matched_file_semantic_notes')}")
+        print("-" * 56)
+        print(f"准确率 (Precision):  {summary.get('file_semantic_match_rate')}")
+        print(f"召回率 (Recall):     {summary.get('file_semantic_recall_rate')}")
+        print(f"平衡分数:            {summary.get('balanced_score')}")
     print("-" * 56)
     total_dur = summary.get("total_duration_seconds", 0)
     avg_dur = summary.get("avg_duration_seconds", 0)
