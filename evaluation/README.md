@@ -136,7 +136,7 @@ The four config groups in `evaluation/.env` each serve a distinct purpose:
 | OCR Review | `OCR_LLM_URL` / `OCR_LLM_TOKEN` / `OCR_LLM_MODEL` / `OCR_USE_ANTHROPIC` |
 | Claude Review | `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL` |
 | Codex Review | `CODEX_API_KEY` (required) / `CODEX_MODEL` (optional) / `CODEX_GATEWAY_URL` (optional) |
-| Judge (Evaluation) | `JUDGE_BASE_URL` / `JUDGE_API_KEY` / `JUDGE_MODEL` / `JUDGE_USE_MOCK` |
+| Judge (Evaluation) | `JUDGE_BASE_URL` / `JUDGE_API_KEY` / `JUDGE_MODEL` / `JUDGE_USE_MOCK` / `JUDGE_CONCURRENCY` |
 
 > **Codex config written to temporary config.toml**: The pipeline writes `CODEX_MODEL` (and
 > `CODEX_GATEWAY_URL`, if provided) into `/tmp/codex_home.XXXXXX/config.toml` at the start of the
@@ -221,9 +221,10 @@ python -m pipeline run --reviewer {ocr|claude|codex} --dataset <standard JSONL> 
 | `--results-dir` | `results/<benchmark>/<reviewer>/<run_id>` | Directly specify results directory (advanced, bypasses run mechanism); auto-derived from dataset otherwise |
 | `--run-id` | Timestamp | Directory name for this run (e.g. `baseline`, `v2`); auto-generated timestamp if omitted for review; **must be explicitly specified for eval** |
 | `--limit` | All | Only process the first N samples of the dataset (randomness is determined at conversion stage, see converter `--seed` above) |
-| `--line-k` | `1` | Evaluation line matching tolerance (overlap or distance ≤ k counts as a hit) |
+| `--line-k` | `1` | Evaluation line matching tolerance (overlap or distance ≤ k counts as a hit); only effective in deprecated scoring mode |
 | `--timeout-minutes` | `30` | Per-sample review timeout |
 | `--eval-rounds` | `1` | Number of evaluation rounds; multi-round runs N independent evaluations then averages the metrics |
+| `--use-deprecated-score` | off | Use the deprecated legacy metrics (per-comment line/semantic P/R/F1); default is the file-level semantic metrics (precision / recall / balanced score) |
 | `--ocr-command` | `ocr` | OCR reviewer executable path; can specify a local release binary (e.g. `./ocr-v2.0.0`), for ocr reviewer only |
 | `--max-tools` | `30` | OCR max tool call rounds per file (controls per-file review depth), for ocr reviewer only |
 | `--concurrency` | `1` | Number of concurrent repo groups during review (`1` = fully serial); see "Concurrent Review" below |
@@ -315,11 +316,22 @@ changes left by reviewers from polluting the next checkout.
 ### Evaluation (evaluate.py + judge.py)
 
 Locates result files by `instance_id` (`<safe_id>.json`), then runs local `judge.py` for
-four-stage matching (path → side → line(k) → semantic):
+**file-level semantic matching**: comments are grouped by file, and each generated comment is
+judged against all reference comments of the same file in a single judge call (one-to-many
+coverage supported).
 
 - Samples with missing result files are counted in `missing_instances` and **excluded from metric
   denominators** (avoiding treating un-run samples as 0 recall).
-- Outputs both **semantic** and **line-based** Precision / Recall / F1.
+- Default metrics: **precision** (`file_semantic_match_rate` = generated comments that hit a
+  previously uncovered GT / total generated comments; duplicate hits on already-covered GTs are
+  not counted), **recall** (`file_semantic_recall_rate` = GTs covered / total GTs, deduplicated
+  under one-to-many matching) and **balanced score** (`balanced_score`, their harmonic mean).
+- `eval_res[].generated_comments[]` in the metrics JSON records, for each generated comment, which
+  GTs it hit (`matched_gt_indices` indexes into the sibling `comments` array), the judge's
+  rationale (`judge_reason`), and whether it covered a previously uncovered GT (`hit_new_gt`;
+  false means a duplicate hit, excluded from precision).
+- The legacy metric system (per-comment four-stage matching path → side → line(k) → semantic, with
+  semantic/line Precision / Recall / F1) is deprecated and only used with `--use-deprecated-score`.
 
 `note` (semantic comparison text) mapping: reference uses `text`, OCR uses `content`, Claude uses
 `summary + failure_scenario`, Codex uses `summary + description` (semantically expanded to failure

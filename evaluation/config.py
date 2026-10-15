@@ -160,6 +160,8 @@ JUDGE_BASE_URL_VAR = "JUDGE_BASE_URL"
 JUDGE_API_KEY_VAR = "JUDGE_API_KEY"
 JUDGE_MODEL_VAR = "JUDGE_MODEL"
 JUDGE_USE_MOCK_VAR = "JUDGE_USE_MOCK"
+# 文件级语义匹配通道调用裁判模型的并发上限（judge 模块 import 时读取，默认 3）
+JUDGE_CONCURRENCY_VAR = "JUDGE_CONCURRENCY"
 
 
 def safe_id(instance_id: str) -> str:
