@@ -112,17 +112,98 @@ consumption per run.
 
 ## Deprecated Metrics (Legacy Per-Comment System)
 
-The legacy system matched reference comments one-to-one through four stages
-(path → side → line(k) → semantic) and produced two metric families, available
-only with `--use-deprecated-score`:
+The legacy system is available only with `--use-deprecated-score` and will be
+removed in a future release. See
+[metric-migration.md](metric-migration.md) for why it was replaced.
 
-| Field | Definition |
-|---|---|
-| `semantic_match_rate` / `semantic_recall_rate` | per-comment semantic-match precision / recall |
-| `line_match_rate` / `line_recall_rate` | per-comment line-overlap precision / recall (within distance `k`) |
-| `semantic_f1` / `line_f1` | harmonic means of the above pairs |
+### Legacy Matching Procedure
+
+The legacy evaluator iterates over each reference comment and scans the
+generated comments through four filtering stages:
+
+```
+path → side → line(k) → semantic
+```
+
+- **path / side**: hard equality on file path and diff side
+- **line(k)**: hard gate — the generated comment's line range must overlap or
+  be within distance `k` of the reference range (whenever both sides carry
+  line information)
+- **semantic**: a pairwise judge-LLM call deciding whether the two comments
+  express the same concern
+
+Matching is one-to-one with global consumption: each generated comment can
+contribute at most one line match and one semantic match per sample.
+
+### Legacy Field Definitions
+
+#### matched_semantic_notes (Semantically Matched Comments)
+- **Definition**: Number of reference comments for which a semantically
+  equivalent generated comment was found
+- **Purpose**: Numerator of both semantic precision and recall — under
+  one-to-one consumption it equals the number of generated comments consumed
+  by semantic matching
+
+#### matched_line_notes (Line-matched Comments)
+- **Definition**: Number of reference comments whose location was hit by a
+  generated comment (path and side equal, line ranges overlapping or within
+  distance `k`)
+- **Purpose**: Numerator of both line precision and recall
+
+The denominators `expected_notes` and `generated_notes` are shared with the
+file-level system.
+
+### Legacy Metric Calculations
+
+#### Precision Metrics
+
+**semantic_match_rate (Semantic Precision)**: proportion of generated comments
+semantically matching an annotated comment
+
+```python
+semantic_match_rate = matched_semantic_notes / generated_notes
+```
+
+**line_match_rate (Line-level Precision)**: proportion of generated comments
+precisely locating an annotated comment
+
+```python
+line_match_rate = matched_line_notes / generated_notes
+```
+
+#### Recall Metrics
+
+**semantic_recall_rate (Semantic Recall)**: proportion of annotated comments
+discovered by the model
+
+```python
+semantic_recall_rate = matched_semantic_notes / expected_notes
+```
+
+**line_recall_rate (Line-level Recall)**: proportion of annotated comments
+discovered and precisely located
+
+```python
+line_recall_rate = matched_line_notes / expected_notes
+```
+
+#### F1 Metrics
+
+**semantic_f1 / line_f1**: harmonic means of the respective precision/recall
+pairs (0 when both are 0)
+
+```python
+semantic_f1 = 2 * semantic_match_rate * semantic_recall_rate \
+    / (semantic_match_rate + semantic_recall_rate)
+line_f1 = 2 * line_match_rate * line_recall_rate \
+    / (line_match_rate + line_recall_rate)
+```
 
 The result JSON records which system produced the numbers in
 `ex_info.score_mode` (`"file_semantic"` | `"deprecated"`). Scores from the two
-systems are not comparable; see
-[metric-migration.md](metric-migration.md) for the migration rationale.
+systems are not comparable.
+
+> Earlier revisions of this document named the legacy fields `positive_*`
+> (e.g. `positive_match_rate`) and included an `unmatched_rate` noise metric;
+> those names never matched the evaluator's actual output and are not produced
+> by any current code path.

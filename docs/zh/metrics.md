@@ -101,15 +101,84 @@ token 消耗。
 
 ## 已弃用指标（旧逐条匹配体系）
 
-旧体系按 path → side → line(k) → semantic 四个阶段逐条一对一匹配，产出
-两族指标，仅在 `--use-deprecated-score` 时可用：
+旧体系仅在 `--use-deprecated-score` 时可用，并将在后续版本中移除。被取代的
+原因见 [metric-migration.md](metric-migration.md)。
 
-| 字段 | 定义 |
-|---|---|
-| `semantic_match_rate` / `semantic_recall_rate` | 逐条语义匹配的准确率 / 召回率 |
-| `line_match_rate` / `line_recall_rate` | 逐条行号重叠（距离 ≤ k）的准确率 / 召回率 |
-| `semantic_f1` / `line_f1` | 上述两对指标的调和平均 |
+### 旧匹配流程
+
+旧评测器遍历每条参考评论，在生成评论中按四个阶段依次过滤：
+
+```
+path → side → line(k) → semantic
+```
+
+- **path / side**：文件路径与 diff 侧别的硬相等
+- **line(k)**：硬门槛——生成评论的行号区间必须与参考评论重叠或距离 ≤ k
+  （双方都带行号信息时生效）
+- **semantic**：逐对调用裁判模型判断两条评论是否表达相同的问题
+
+匹配为全局消耗式的一对一：每条生成评论在每个样本内最多贡献一次行号匹配
+和一次语义匹配。
+
+### 旧字段定义
+
+#### matched_semantic_notes（语义匹配评论数）
+- 定义：找到了语义等价生成评论的参考评论数
+- 作用：同时作为语义准确率与召回率的分子——一对一消耗下它等于被语义
+  匹配消耗的生成评论数
+
+#### matched_line_notes（行号匹配评论数）
+- 定义：位置被生成评论命中的参考评论数（路径与侧别相等，行号区间重叠或
+  距离 ≤ k）
+- 作用：同时作为行号准确率与召回率的分子
+
+分母 `expected_notes` 与 `generated_notes` 与文件级体系共用。
+
+### 旧指标计算
+
+#### 准确率指标
+
+**semantic_match_rate（语义准确率）**：语义匹配上标注评论的生成评论比例
+
+```python
+semantic_match_rate = matched_semantic_notes / generated_notes
+```
+
+**line_match_rate（行级准确率）**：精确定位到标注评论的生成评论比例
+
+```python
+line_match_rate = matched_line_notes / generated_notes
+```
+
+#### 召回率指标
+
+**semantic_recall_rate（语义召回率）**：标注评论中被模型发现的比例
+
+```python
+semantic_recall_rate = matched_semantic_notes / expected_notes
+```
+
+**line_recall_rate（行级召回率）**：标注评论中被模型发现并精确定位的比例
+
+```python
+line_recall_rate = matched_line_notes / expected_notes
+```
+
+#### F1 指标
+
+**semantic_f1 / line_f1**：各自准确率 / 召回率的调和平均（二者均为 0 时
+为 0）
+
+```python
+semantic_f1 = 2 * semantic_match_rate * semantic_recall_rate \
+    / (semantic_match_rate + semantic_recall_rate)
+line_f1 = 2 * line_match_rate * line_recall_rate \
+    / (line_match_rate + line_recall_rate)
+```
 
 结果 JSON 通过 `ex_info.score_mode`（`"file_semantic"` | `"deprecated"`）
-记录数字由哪套体系产出。两套体系的分数不可比，迁移理由见
-[metric-migration.md](metric-migration.md)。
+记录数字由哪套体系产出。两套体系的分数不可比。
+
+> 本文档早期版本曾用 `positive_*` 命名旧字段（如 `positive_match_rate`）
+> 并包含 `unmatched_rate` 噪声指标；这些命名与评测器的实际输出从未一致，
+> 且当前任何代码路径都不会产出。
