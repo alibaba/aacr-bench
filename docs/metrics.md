@@ -135,6 +135,15 @@ path → side → line(k) → semantic
 Matching is one-to-one with global consumption: each generated comment can
 contribute at most one line match and one semantic match per sample.
 
+> **Known limitation: left-side references.** The bundled reviewers (Claude,
+> Codex, OCR) review the new code, so `evaluate.py` sets `side` to `"right"` on
+> every generated comment. Under the side filter, the 8 reference comments in
+> `dataset/positive_samples.json` with `side: "left"` (out of 1,506) cannot be
+> matched by these reviewers, yet they still count in the recall denominator.
+> The references are kept for reviewers that do comment on the old side
+> ([#9](https://github.com/alibaba/aacr-bench/issues/9)). The file-level
+> metrics are not affected, because they do not filter on side.
+
 ### Legacy Field Definitions
 
 #### matched_semantic_notes (Semantically Matched Comments)
