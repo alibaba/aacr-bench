@@ -23,6 +23,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import config
 import evaluate
+import snapshot_utils
 from repo_utils import RepoError, log
 from reviewers import claude as claude_reviewer
 from reviewers import codex as codex_reviewer
@@ -322,6 +323,17 @@ def _print_average_summary(
     print("=" * 56)
 
 
+def _preflight_reviewer(reviewer: str, preview: bool, ocr_command: str) -> None:
+    """Fail fast on a missing reviewer CLI before preparing multi-GB snapshots."""
+    if reviewer == "ocr":
+        ocr_reviewer.ensure_ocr_installed(ocr_command)
+        ocr_reviewer.check_env(preview)
+    elif reviewer == "claude":
+        claude_reviewer.ensure_claude_installed()
+    elif reviewer == "codex":
+        codex_reviewer.ensure_codex_installed()
+
+
 def run_pipeline(args) -> int:
     """根据 CLI 参数编排各阶段。"""
     instances = load_instances(args.dataset, args.limit)
@@ -331,6 +343,12 @@ def run_pipeline(args) -> int:
         return 0
 
     if args.stage in ("all", "review"):
+        _preflight_reviewer(args.reviewer, args.preview, args.ocr_command)
+        try:
+            snapshot_utils.prepare_repo_source(instances, args)
+        except snapshot_utils.SnapshotError as error:
+            log(f"[repo] FAILED: {error}")
+            return 1
         run_review_stage(
             instances=instances,
             reviewer=args.reviewer,
@@ -395,7 +413,87 @@ def build_parser() -> argparse.ArgumentParser:
         "--repo-dir",
         type=_path_arg,
         default=config.DEFAULT_REPO_DIR,
-        help="仓库 clone 目录",
+        help="仓库缓存目录（HF 快照解压、partial clone 或全量 clone）",
+    )
+    run_parser.add_argument(
+        "--repo-source",
+        choices=["auto", "snapshot", "partial", "git"],
+        default="auto",
+        help="仓库准备方式：auto（HF 快照优先，失败回退 partial clone）/ "
+        "snapshot（仅 HF 快照）/ partial（仅 GitHub partial clone）/ "
+        "git（旧的全量 clone 行为）",
+    )
+    run_parser.add_argument(
+        "--snapshot-repo-id",
+        default=snapshot_utils.DEFAULT_SNAPSHOT_REPO,
+        help="HF 快照数据集仓库 id",
+    )
+    run_parser.add_argument(
+        "--snapshot-revision",
+        default=snapshot_utils.DEFAULT_SNAPSHOT_REVISION,
+        help="HF 快照仓库 revision（默认 main）",
+    )
+    run_parser.add_argument(
+        "--snapshot-endpoint",
+        default=None,
+        help="HF endpoint，可用逗号分隔多个；默认 HF_ENDPOINT 或 "
+        "https://hf-mirror.com,https://huggingface.co",
+    )
+    run_parser.add_argument(
+        "--snapshot-archive-dir",
+        type=_path_arg,
+        default=config.EVALUATION_DIR / "snapshots",
+        help="快照 tar.gz 与 SHA256SUMS 的缓存目录",
+    )
+    run_parser.add_argument(
+        "--snapshot-jobs",
+        type=int,
+        default=4,
+        help="快照下载并发数（默认 4）",
+    )
+    run_parser.add_argument(
+        "--snapshot-scope",
+        choices=["all", "dataset"],
+        default="dataset",
+        help="快照范围：dataset（只处理当前数据集/当前 run 所需仓库，默认）/ all（全部 46 个）",
+    )
+    run_parser.add_argument(
+        "--snapshot-no-download",
+        action="store_true",
+        help="不下载快照，只用 --snapshot-archive-dir 中已有文件",
+    )
+    run_parser.add_argument(
+        "--snapshot-no-extract",
+        action="store_true",
+        help="不解压快照，只校验 tar 包",
+    )
+    run_parser.add_argument(
+        "--snapshot-no-blob-check",
+        action="store_true",
+        help="跳过逐 blob 存在性校验（更快，但验证强度降低）",
+    )
+    run_parser.add_argument(
+        "--fallback-partial",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="auto 模式下 HF 快照失败时回退到 GitHub partial clone（默认开启）",
+    )
+    run_parser.add_argument(
+        "--partial-clone-modes",
+        default="tree0,blobless,full",
+        help="partial clone 回退顺序（默认 tree0,blobless,full）",
+    )
+    run_parser.add_argument(
+        "--partial-jobs",
+        type=int,
+        default=2,
+        help="partial clone 回退时的仓库并发数（默认 2）",
+    )
+    run_parser.add_argument(
+        "--repo-timeout",
+        type=int,
+        default=1800,
+        help="partial clone/fetch/checkout 单步超时秒数（默认 1800）",
     )
     run_parser.add_argument(
         "--results-dir",
@@ -457,6 +555,67 @@ def build_parser() -> argparse.ArgumentParser:
         "--preview",
         action="store_true",
         help="预览模式：只 clone/checkout，不真正调用评审 LLM",
+    )
+
+    snapshot_parser = subparsers.add_parser(
+        "snapshot",
+        help="下载/校验/解压/验证 HF 仓库快照",
+    )
+    snapshot_parser.add_argument(
+        "--repo-dir",
+        type=_path_arg,
+        default=config.DEFAULT_REPO_DIR,
+        help="解压后的仓库目录（默认 evaluation/repo）",
+    )
+    snapshot_parser.add_argument(
+        "--archive-dir",
+        type=_path_arg,
+        default=config.EVALUATION_DIR / "snapshots",
+        help="tar.gz 与 SHA256SUMS 缓存目录（默认 evaluation/snapshots）",
+    )
+    snapshot_parser.add_argument(
+        "--repo-id",
+        default=snapshot_utils.DEFAULT_SNAPSHOT_REPO,
+        help="HF 快照数据集仓库 id",
+    )
+    snapshot_parser.add_argument(
+        "--revision",
+        default=snapshot_utils.DEFAULT_SNAPSHOT_REVISION,
+        help="HF 快照仓库 revision（默认 main）",
+    )
+    snapshot_parser.add_argument(
+        "--endpoint",
+        default=None,
+        help="HF endpoint，可用逗号分隔多个；默认 HF_ENDPOINT 或内置镜像",
+    )
+    snapshot_parser.add_argument(
+        "--dataset",
+        type=_path_arg,
+        default=None,
+        help="可选：标准格式 JSONL；提供后逐实例校验仓库覆盖",
+    )
+    snapshot_parser.add_argument(
+        "--scope",
+        choices=["all", "dataset"],
+        default="all",
+        help="all（全部 46 个）/ dataset（只处理 --dataset 所需仓库）",
+    )
+    snapshot_parser.add_argument("--jobs", type=int, default=4, help="下载并发数")
+    snapshot_parser.add_argument(
+        "--no-download", action="store_true", help="不下载，只用已有 archive"
+    )
+    snapshot_parser.add_argument(
+        "--no-extract", action="store_true", help="不解压，只校验 tar 包"
+    )
+    snapshot_parser.add_argument(
+        "--no-blob-check",
+        action="store_true",
+        help="跳过逐 blob 存在性校验（更快，但验证强度降低）",
+    )
+    snapshot_parser.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="不解压，只验证已解压仓库与 archive",
     )
     return parser
 
@@ -524,6 +683,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.command == "run":
         apply_defaults(args)
         return run_pipeline(args)
+
+    if args.command == "snapshot":
+        return snapshot_utils.run_snapshot_command(args)
 
     parser.print_help()
     return 1

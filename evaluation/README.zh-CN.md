@@ -15,6 +15,7 @@ evaluation/
 ├── schema.py              # 标准数据格式（dataclass）+ JSONL 加载校验
 ├── config.py              # 路径 / 环境变量 / 命名规则集中配置
 ├── repo_utils.py          # git clone / checkout / 清理工作区 公共逻辑
+├── snapshot_utils.py      # HF 快照下载/校验/解压/验证 + GitHub partial clone 回退
 ├── reviewers/
 │   ├── ocr.py             # OCR（OpenCodeReview）评审器
 │   ├── claude.py          # Claude Code 评审器（含 MCP 增量上报 + 多级兜底）
@@ -24,10 +25,12 @@ evaluation/
 ├── judge.py               # 评测核心：四阶段匹配 + 指标统计 + 语义判定（LLM/Mock）
 ├── evaluate.py            # 评测编排：对齐数据 -> 调 judge -> 汇总指标
 ├── converters/
-│   └── aacr_bench.py      # AACR-Bench -> 标准格式 转换器
+│   ├── aacr_bench.py      # AACR-Bench v1 -> 标准格式 转换器
+│   └── aacr_bench_v2.py   # AACR-Bench v2 -> 标准格式 转换器
 ├── benchmark/<名字>/      # 各 benchmark 的原始数据（提交 *.meta.json 描述，数据首次运行时自动下载并校验）
 ├── data/<名字>.jsonl      # 转换后的标准格式数据集（按 benchmark 命名）
-├── repo/                  # 仓库 clone 缓存（<owner__name>，自动生成）
+├── repo/                  # 仓库 clone / 快照解压缓存（<owner__name>，自动生成）
+├── snapshots/             # HF 快照 tar.gz + SHA256SUMS 下载缓存（自动生成）
 ├── results/<benchmark>/<reviewer>/<run_id>/   # 评审结果（每次 run 独立目录，防覆盖）
 └── metrics/<benchmark>/<reviewer>/<run_id>/   # 评测指标（与 results 镜像对齐）
 ```
@@ -49,6 +52,7 @@ evaluation/
   "base_commit": "5351469472eccee7ed1a6cae53341446c520d807",
   "head_commit": "9484e13c7da927119fe82794bb5571cec144b6d7",
   "clone_url": "https://github.com/psf/requests.git",
+  "pr_url": "https://github.com/psf/requests/pull/5711",
   "reference_comments": [
     {
       "path": "setup.py",
@@ -70,6 +74,7 @@ evaluation/
 | `base_commit` | 是 | 评审 diff 的起点 commit |
 | `head_commit` | 是 | 评审 diff 的终点 commit（被评审的代码状态） |
 | `clone_url` | 否 | 缺省按 `repo` 推导 GitHub 地址 |
+| `pr_url` | 否 | GitHub PR URL；partial clone 回退时用于 fetch `refs/pull/<n>/head` |
 | `reference_comments[]` | 否 | 人工标注的参考评论；为空表示该样本无参考答案 |
 | `reference_comments[].path` | 是 | 评论所在文件路径 |
 | `reference_comments[].start_line` / `end_line` | 否 | 行号闭区间 `[start, end]`；单点令两者相等；可为 `null` |
@@ -157,6 +162,9 @@ set -a && source .env && set +a
 # AACR-Bench（原始数据 benchmark/AACR-Bench/ -> data/aacr_bench.jsonl）
 python -m converters.aacr_bench --validate
 
+# AACR-Bench v2（原始数据 benchmark/AACR-Bench-v2/ -> data/aacr_bench_v2.jsonl）
+python -m converters.aacr_bench_v2 --validate
+
 # --validate：转换后用 schema 重新加载校验，确保产物合法
 # --limit N：先把全部样本乱序，再取前 N 条（随机抽样，不传则全量）
 # --seed N：乱序随机种子，指定后随机可复现（用于固定评测子集；默认每次随机）
@@ -180,7 +188,59 @@ python -m converters.aacr_bench \
 | `--seed` | 每次随机 | 乱序随机种子；指定后随机可复现（用于固定评测子集） |
 | `--validate` | 关 | 转换后用 schema 重新加载校验，确保产物合法 |
 
-### 2. 一键运行（评审 + 评测）
+### 2. 准备仓库快照（HF 优先）
+
+评测需要把每个 PR 的仓库 checkout 到 `target_commit`。默认的 `--repo-source auto`
+会优先从 Hugging Face 快照仓下载全部仓库快照，失败时回退到 GitHub partial clone。
+也可以先单独执行快照准备：
+
+```bash
+# 下载全部 46 个 tar.gz（约 4.1GB）+ SHA256SUMS，校验后解压到 repo/，
+# 再按当前数据集逐实例验证 base/target/merge-base、端点 tree/blob 与三点 diff
+python -m pipeline snapshot \
+    --dataset data/aacr_bench_v2.jsonl \
+    --repo-dir repo \
+    --archive-dir snapshots \
+    --jobs 4
+
+# 只处理当前数据集用到的仓库（更快，但不会下载全部快照）
+python -m pipeline snapshot --dataset data/aacr_bench_v2.jsonl --scope dataset
+
+# 已经下载/解压过，只做验证
+python -m pipeline snapshot --dataset data/aacr_bench_v2.jsonl --verify-only
+```
+
+快照来源与行为：
+
+- 快照仓默认 `Alibaba-Aone/aacr-bench-repos`，revision `main`；
+  endpoint 默认先试 `https://hf-mirror.com`，再试 `https://huggingface.co`；
+  设置 `HF_ENDPOINT`，或 `pipeline snapshot` 用 `--endpoint`、`pipeline run` 用
+  `--snapshot-endpoint`，只使用指定的 endpoint（可用逗号分隔多个）。
+- `--scope all`（`pipeline snapshot` 默认）下载 46 个包；`pipeline run` 默认
+  `--snapshot-scope dataset`，只下载当前已加载实例所需仓库；如需全部 46 个，在
+  `pipeline run` 显式传 `--snapshot-scope all`。
+- 每个包按 `SHA256SUMS` 校验，解压前检查路径穿越/符号链接逃逸；解压后验证
+  `refs/heads/{base,target,merge_base}/*`、端点 commit/tree/blob 和
+  `git diff <base>...<target>`。
+- v2 使用 42 个仓库，全部包含在快照仓中；v1 有 4 个仓库因许可/可获取性未提供快照
+  （`CherryHQ/cherry-studio`、`dbeaver/dbeaver`、`n8n-io/n8n`、`wavetermdev/waveterm`），
+  v1 请用 `--repo-source git` 或允许 `auto` 回退 partial clone。
+- 快照许可：每个压缩包保留对应上游仓库的原始许可；不提供集合级许可。本仓库的
+  Apache-2.0 仅覆盖本仓库代码，不覆盖快照中的第三方代码。使用快照必须遵守对应仓库的
+  许可与署名要求。
+- 快照是 shallow、non-bare、无 remote 的仓库，保留评测所需端点；不承诺完整历史、
+  `git blame` 或 LFS 实体。checkout 时自动设置 `GIT_LFS_SKIP_SMUDGE=1`。
+- 完整性：`SHA256SUMS` 与 tar 来自同一 endpoint，被投毒的镜像可同时替换两者。
+  生产/隔离环境建议把 `--snapshot-revision` 固定到发布 commit SHA，并优先使用官方
+  `https://huggingface.co` 或可信镜像。
+- 磁盘占用：tar 缓存约 4.1GB，解压后约 8GB；`snapshots/` 与 `repo/` 均已 gitignore。
+  `pipeline run` 默认 dataset scope，`--limit 5` 只下载这 5 个实例所需仓库；如需完整
+  46 个包，用 `--snapshot-scope all`，或先单独运行 `pipeline snapshot`。
+- 高级参数：`pipeline run` 用 `--snapshot-no-download` 只校验并使用已有 archive、
+  `--snapshot-no-extract` 只校验 archive 不解压、`--snapshot-no-blob-check` 跳过逐 blob 校验；
+  `pipeline snapshot` 对应 `--no-download`、`--no-extract`、`--no-blob-check`。
+
+### 3. 一键运行（评审 + 评测）
 
 ```bash
 set -a && source .env && set +a
@@ -188,11 +248,19 @@ set -a && source .env && set +a
 # OCR 评审器，跑前 5 条
 python -m pipeline run --stage all --reviewer ocr --dataset data/aacr_bench.jsonl --limit 5 --concurrency 1 --run-id baseline
 
+# AACR-Bench v2 + HF 快照优先（auto：快照失败时回退 GitHub partial clone）
+python -m pipeline run --stage all --reviewer ocr --dataset data/aacr_bench_v2.jsonl --limit 5 --concurrency 1 --run-id v2-baseline
+
+# 显式只用快照 / 只用 partial clone / 保持旧的全量 clone
+python -m pipeline run --stage review --reviewer ocr --dataset data/aacr_bench_v2.jsonl --repo-source snapshot --limit 2 --preview --run-id v2-smoke
+python -m pipeline run --stage review --reviewer ocr --dataset data/aacr_bench_v2.jsonl --repo-source partial --limit 2 --preview --run-id v2-partial
+python -m pipeline run --stage review --reviewer ocr --dataset data/aacr_bench.jsonl --repo-source git --limit 2 --preview --run-id v1-smoke
+
 # Claude 评审器，跑前 2 条，评审完直接评测
-python -m pipeline run --stage all --reviewer claude --dataset data/aacr_bench.jsonl --limit 2 --concurrency 1 --run-id baseline
+python -m pipeline run --stage all --reviewer claude --dataset data/aacr_bench_v2.jsonl --limit 2 --concurrency 1 --run-id v2-claude
 
 # Codex 评审器，跑前 2 条
-python -m pipeline run --stage all --reviewer codex --dataset data/aacr_bench.jsonl --limit 2 --concurrency 1 --run-id baseline
+python -m pipeline run --stage all --reviewer codex --dataset data/aacr_bench_v2.jsonl --limit 2 --concurrency 1 --run-id v2-codex
 ```
 
 ---
@@ -208,9 +276,16 @@ python -m pipeline run --reviewer {ocr|claude|codex} --dataset <标准JSONL> [op
 | 参数 | 默认值 | 说明 |
 | ---- | ------ | ---- |
 | `--reviewer` | （必填） | 评审器：`ocr` / `claude` / `codex` |
-| `--dataset` | （必填） | 标准格式数据集路径，如 `data/aacr_bench.jsonl` |
+| `--dataset` | （必填） | 标准格式数据集路径，如 `data/aacr_bench.jsonl` 或 `data/aacr_bench_v2.jsonl` |
 | `--stage` | `all` | `all`（评审+评测）/ `review`（仅评审）/ `eval`（仅评测） |
-| `--repo-dir` | `repo/` | 仓库 clone 目录（缓存复用） |
+| `--repo-dir` | `repo/` | 仓库缓存目录（HF 快照解压或 partial clone 都落在这里） |
+| `--repo-source` | `auto` | 仓库来源：`auto`（HF 快照优先，失败回退 partial clone）/ `snapshot`（仅快照）/ `partial`（仅 GitHub partial clone）/ `git`（旧的全量 clone） |
+| `--snapshot-endpoint` | `HF_ENDPOINT` 或内置镜像 | HF endpoint，可用逗号分隔多个；默认先 `hf-mirror.com` 再 `huggingface.co` |
+| `--snapshot-archive-dir` | `snapshots/` | 快照 tar.gz 与 SHA256SUMS 缓存目录 |
+| `--snapshot-scope` | `dataset` | `dataset` 只下载当前已加载实例所需仓库；`all` 下载全部 46 个 |
+| `--no-fallback-partial` | 关 | `auto` 模式下禁用 GitHub partial clone 回退 |
+| `--partial-clone-modes` | `tree0,blobless,full` | partial clone 回退顺序 |
+| `--repo-timeout` | `1800` | partial clone/fetch/checkout 单步超时（秒） |
 | `--results-dir` | `results/<benchmark>/<reviewer>/<run_id>` | 直接指定结果目录（高级用法，绕过 run 机制）；缺省按 dataset 自动推导 |
 | `--run-id` | 时间戳 | 本次 run 的目录名（如 `baseline`、`v2`）；review 不传则自动用时间戳命名；**eval 阶段必须显式指定** |
 | `--limit` | 全部 | 只处理标准数据集的前 N 条（数据集的随机性已在转换阶段决定，见上方转换器 `--seed`） |
@@ -274,7 +349,7 @@ python -m pipeline run --stage eval --reviewer claude --dataset data/aacr_bench.
 
 ### 执行评审（reviewers/）
 
-对每条样本：`clone/fetch` → `checkout head_commit` → 调用评审器 → 写 `<safe_id>.json`。
+对每条样本：按 `--repo-source` 准备仓库（默认 `auto`：HF 快照优先，失败回退 GitHub partial clone）→ `checkout head_commit` → 调用评审器 → 写 `<safe_id>.json`。
 评审过程带**进度条**（已完成 / 总数 + 实时速率 + ETA），可用于预估总耗时；
 多 repo 并发时进度条线程安全地汇总推进（并发机制见上方「并发评审」）。
 
@@ -376,4 +451,28 @@ failure scenario + 建议修复）。Codex 的 `severity` 字段仅存档，不�
 `JUDGE_API_KEY` 并 `JUDGE_USE_MOCK=false` 后重跑即可走真实裁判模型（评测阶段会自动读取该文件）。
 
 **Q：仓库 clone 在哪？会重复 clone 吗？**
-clone 到 `evaluation/repo/<owner__name>`，同一仓库缓存复用、只 fetch 不重复 clone。
+仓库缓存在 `evaluation/repo/<owner__name>`。`--repo-source auto` 会先检查该目录是否已覆盖当前数据集；
+已覆盖则直接复用，否则优先下载 HF 快照。HF 不可用时回退 GitHub partial clone。已存在的仓库不会每次
+`git fetch --all`，缺失的 base/target commit 由 `ensure_commit_present` 按需拉取。
+
+**Q：HF 快照下载很慢或失败怎么办？**
+默认先试 `https://hf-mirror.com`，再试 `https://huggingface.co`；也可设置 `HF_ENDPOINT` 或
+`--snapshot-endpoint` 指向可用镜像。下载按 `SHA256SUMS` 校验，已存在的合法包会跳过。若整个 HF
+不可达，`--repo-source auto` 会自动回退到 GitHub partial clone（tree:0 → blobless → full）；也可显式
+`--repo-source partial`。只想验证已下载内容时用 `pipeline snapshot --verify-only`。
+
+**Q：v1 能用 HF 快照吗？**
+不能完整覆盖。快照仓只有 46 个仓库，v1 的 4 个许可敏感仓（`CherryHQ/cherry-studio`、
+`dbeaver/dbeaver`、`n8n-io/n8n`、`wavetermdev/waveterm`）没有快照。v1 请用 `--repo-source git`
+（旧全量 clone）或让 `auto` 回退 partial clone。v2 的 42 个仓库全部有快照。
+
+**Q：GitHub 已经回收 target commit 时怎么办？**
+partial clone 无法恢复 GitHub 已 GC 的 commit；即使通过 PR ref，`git fetch` 也会报 `not our ref`。
+这类仓库会记录在 `partial_clone_manifest.json` 的 blocked 列表，相关实例以 per-instance error
+呈现，不会伪造结果。此类数据集请用 `--repo-source snapshot`（或 HF 可用的 `auto`）。v1 另有 4 个
+仓库因许可/可获取性不在快照集中。
+
+**Q：每次运行都会 fetch 已有仓库吗？**
+不会。已有的 `repo/<owner__name>` 缓存会被复用；缺失的 base/target commit 由
+`ensure_commit_present` 按需 fetch。`--repo-source git` 也适用；如需获取新发布的 refs，
+请使用新的 `--repo-dir` 或手动 `git fetch`。

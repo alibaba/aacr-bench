@@ -16,6 +16,7 @@ evaluation/
 ├── schema.py              # Standard data format (dataclass) + JSONL loading & validation
 ├── config.py              # Centralized paths / env vars / naming conventions
 ├── repo_utils.py          # Shared git clone / checkout / workspace cleanup logic
+├── snapshot_utils.py      # HF snapshot download/verify/extract/validate + GitHub partial-clone fallback
 ├── reviewers/
 │   ├── ocr.py             # OCR (OpenCodeReview) reviewer
 │   ├── claude.py          # Claude Code reviewer (MCP incremental reporting + multi-level fallback)
@@ -25,10 +26,12 @@ evaluation/
 ├── judge.py               # Evaluation core: 4-stage matching + metrics + semantic judgment (LLM/Mock)
 ├── evaluate.py            # Evaluation orchestration: align data → call judge → aggregate metrics
 ├── converters/
-│   └── aacr_bench.py      # AACR-Bench → standard format converter
+│   ├── aacr_bench.py      # AACR-Bench v1 → standard format converter
+│   └── aacr_bench_v2.py   # AACR-Bench v2 → standard format converter
 ├── benchmark/<name>/      # Raw data for each benchmark (data described by *.meta.json, auto-downloaded on first run)
 ├── data/<name>.jsonl      # Converted standard format datasets (named by benchmark)
-├── repo/                  # Repository clone cache (<owner__name>, auto-generated)
+├── repo/                  # Repository cache (snapshot extraction or clone, <owner__name>)
+├── snapshots/             # HF snapshot tar.gz + SHA256SUMS download cache (auto-generated)
 ├── results/<benchmark>/<reviewer>/<run_id>/   # Review results (isolated per run, no overwrites)
 └── metrics/<benchmark>/<reviewer>/<run_id>/   # Evaluation metrics (mirrors results structure)
 ```
@@ -50,6 +53,7 @@ The dataset is **JSONL**, one sample per line (`ReviewInstance`):
   "base_commit": "5351469472eccee7ed1a6cae53341446c520d807",
   "head_commit": "9484e13c7da927119fe82794bb5571cec144b6d7",
   "clone_url": "https://github.com/psf/requests.git",
+  "pr_url": "https://github.com/psf/requests/pull/5711",
   "reference_comments": [
     {
       "path": "setup.py",
@@ -71,6 +75,7 @@ Field reference:
 | `base_commit` | Yes | Starting commit of the review diff |
 | `head_commit` | Yes | Ending commit of the review diff (the code state being reviewed) |
 | `clone_url` | No | Falls back to derived GitHub URL from `repo` if omitted |
+| `pr_url` | No | GitHub PR URL; used by the partial-clone fallback to fetch `refs/pull/<n>/head` |
 | `reference_comments[]` | No | Human-annotated reference comments; empty means no ground truth for this sample |
 | `reference_comments[].path` | Yes | File path of the comment |
 | `reference_comments[].start_line` / `end_line` | No | Closed line interval `[start, end]`; single-line: set both equal; may be `null` |
@@ -164,6 +169,9 @@ built-in:
 # AACR-Bench (raw data benchmark/AACR-Bench/ -> data/aacr_bench.jsonl)
 python -m converters.aacr_bench --validate
 
+# AACR-Bench v2 (raw data benchmark/AACR-Bench-v2/ -> data/aacr_bench_v2.jsonl)
+python -m converters.aacr_bench_v2 --validate
+
 # --validate: re-load with schema after conversion to verify output validity
 # --limit N: shuffle all records then take the first N (random sampling; omit for full dataset)
 # --seed N: random seed for shuffling; makes the sample reproducible (for fixed evaluation subsets)
@@ -187,7 +195,65 @@ python -m converters.aacr_bench \
 | `--seed` | Random each time | Random seed for shuffling; makes the sample reproducible |
 | `--validate` | Off | Re-load with schema after conversion to verify output validity |
 
-### 2. One-Click Run (Review + Evaluation)
+### 2. Prepare Repository Snapshots (HF-first)
+
+The evaluation pipeline checks out each PR's repository at `target_commit`. The default
+`--repo-source auto` first tries the Hugging Face snapshot repository and falls back to a
+GitHub partial clone when the download is unavailable. You can also prepare snapshots
+explicitly:
+
+```bash
+# Download all 46 tar.gz archives (~4.1GB) + SHA256SUMS, verify, extract to repo/,
+# then validate base/target/merge-base, endpoint trees/blobs, and three-dot diffs
+python -m pipeline snapshot \
+    --dataset data/aacr_bench_v2.jsonl \
+    --repo-dir repo \
+    --archive-dir snapshots \
+    --jobs 4
+
+# Only the repositories used by the current dataset (faster, not the full set)
+python -m pipeline snapshot --dataset data/aacr_bench_v2.jsonl --scope dataset
+
+# Re-verify already downloaded/extracted snapshots without downloading or extracting
+python -m pipeline snapshot --dataset data/aacr_bench_v2.jsonl --verify-only
+```
+
+Snapshot source and behavior:
+
+- Default repository: `Alibaba-Aone/aacr-bench-repos`, revision `main`. The default
+  endpoints are `https://hf-mirror.com` first and `https://huggingface.co` second.
+  Use `HF_ENDPOINT`, or `--endpoint` on `pipeline snapshot` / `--snapshot-endpoint`
+  on `pipeline run`, to use only the supplied endpoint(s), comma-separated.
+- `--scope all` (default for `pipeline snapshot`) downloads all 46 archives; `pipeline run` defaults to `--snapshot-scope dataset`, which downloads only the repositories used by the loaded instances. Use `--snapshot-scope all` on `pipeline run` to fetch the full set.
+- Every archive is checked against `SHA256SUMS`; extraction rejects path traversal and
+  escaping symlinks; extracted repositories are validated for
+  `refs/heads/{base,target,merge_base}/*`, endpoint commits/trees/blobs, and
+  `git diff <base>...<target>`.
+- v2 uses 42 repositories and all of them have snapshots. v1 has four repositories without
+  snapshots because of licensing/availability (`CherryHQ/cherry-studio`, `dbeaver/dbeaver`,
+  `n8n-io/n8n`, `wavetermdev/waveterm`); use `--repo-source git` for v1 or let `auto`
+  fall back to a partial clone.
+- Snapshot licensing: each archive retains its upstream repository's original license;
+  no aggregate license is granted. The Apache-2.0 license of this repository covers its
+  own code, not the third-party code inside the snapshots. Use must comply with each
+  repository's license and attribution requirements.
+- Snapshots are shallow, non-bare repositories without a remote. They retain the endpoint
+  commits needed by evaluation, but do not promise complete history, `git blame`, or LFS
+  objects. `GIT_LFS_SKIP_SMUDGE=1` is set automatically.
+- Integrity: `SHA256SUMS` and the archives come from the same endpoint, so a
+  compromised mirror can replace both. For production or air-gapped use, pin
+  `--snapshot-revision` to a published commit SHA and use the official
+  `https://huggingface.co` endpoint or a trusted mirror.
+- Disk usage: about 4.1GB of archives and 8GB extracted; `snapshots/` and `repo/` are
+  gitignored. `pipeline run` defaults to dataset-scoped preparation, so `--limit 5`
+  downloads only repositories used by those instances; use `--snapshot-scope all` for
+  the full 46-archive set, or run `pipeline snapshot` first.
+- Advanced: on `pipeline run`, `--snapshot-no-download` verifies and uses existing
+  archives, `--snapshot-no-extract` verifies archives without extracting, and
+  `--snapshot-no-blob-check` skips per-blob checks. On `pipeline snapshot`, the
+  corresponding flags are `--no-download`, `--no-extract`, and `--no-blob-check`.
+
+### 3. One-Click Run (Review + Evaluation)
 
 ```bash
 set -a && source .env && set +a
@@ -195,11 +261,19 @@ set -a && source .env && set +a
 # OCR reviewer, first 5 samples
 python -m pipeline run --stage all --reviewer ocr --dataset data/aacr_bench.jsonl --limit 5 --concurrency 1 --run-id baseline
 
+# AACR-Bench v2 with HF snapshots first (auto falls back to a GitHub partial clone)
+python -m pipeline run --stage all --reviewer ocr --dataset data/aacr_bench_v2.jsonl --limit 5 --concurrency 1 --run-id v2-baseline
+
+# Explicit source: snapshots only / partial clone only / legacy full clone
+python -m pipeline run --stage review --reviewer ocr --dataset data/aacr_bench_v2.jsonl --repo-source snapshot --limit 2 --preview --run-id v2-smoke
+python -m pipeline run --stage review --reviewer ocr --dataset data/aacr_bench_v2.jsonl --repo-source partial --limit 2 --preview --run-id v2-partial
+python -m pipeline run --stage review --reviewer ocr --dataset data/aacr_bench.jsonl --repo-source git --limit 2 --preview --run-id v1-smoke
+
 # Claude reviewer, first 2 samples, review then evaluate
-python -m pipeline run --stage all --reviewer claude --dataset data/aacr_bench.jsonl --limit 2 --concurrency 1 --run-id baseline
+python -m pipeline run --stage all --reviewer claude --dataset data/aacr_bench_v2.jsonl --limit 2 --concurrency 1 --run-id v2-claude
 
 # Codex reviewer, first 2 samples
-python -m pipeline run --stage all --reviewer codex --dataset data/aacr_bench.jsonl --limit 2 --concurrency 1 --run-id baseline
+python -m pipeline run --stage all --reviewer codex --dataset data/aacr_bench_v2.jsonl --limit 2 --concurrency 1 --run-id v2-codex
 ```
 
 ---
@@ -215,9 +289,16 @@ python -m pipeline run --reviewer {ocr|claude|codex} --dataset <standard JSONL> 
 | Parameter | Default | Description |
 | --------- | ------- | ----------- |
 | `--reviewer` | (required) | Reviewer: `ocr` / `claude` / `codex` |
-| `--dataset` | (required) | Standard format dataset path, e.g. `data/aacr_bench.jsonl` |
+| `--dataset` | (required) | Standard format dataset path, e.g. `data/aacr_bench.jsonl` or `data/aacr_bench_v2.jsonl` |
 | `--stage` | `all` | `all` (review + eval) / `review` (review only) / `eval` (eval only) |
-| `--repo-dir` | `repo/` | Repository clone directory (cached for reuse) |
+| `--repo-dir` | `repo/` | Repository cache (snapshot extraction or partial clone) |
+| `--repo-source` | `auto` | Repository source: `auto` (HF snapshots first, partial-clone fallback), `snapshot`, `partial`, or `git` (legacy full clone) |
+| `--snapshot-endpoint` | `HF_ENDPOINT` or built-in mirrors | HF endpoint(s), comma-separated; defaults to `hf-mirror.com` then `huggingface.co` |
+| `--snapshot-archive-dir` | `snapshots/` | Snapshot tar.gz + SHA256SUMS cache directory |
+| `--snapshot-scope` | `dataset` | `dataset` downloads only the repositories used by the loaded instances; `all` downloads all 46 archives |
+| `--no-fallback-partial` | Off | Disable the GitHub partial-clone fallback in `auto` mode |
+| `--partial-clone-modes` | `tree0,blobless,full` | Partial-clone fallback order |
+| `--repo-timeout` | `1800` | Per-step partial clone/fetch/checkout timeout (seconds) |
 | `--results-dir` | `results/<benchmark>/<reviewer>/<run_id>` | Directly specify results directory (advanced, bypasses run mechanism); auto-derived from dataset otherwise |
 | `--run-id` | Timestamp | Directory name for this run (e.g. `baseline`, `v2`); auto-generated timestamp if omitted for review; **must be explicitly specified for eval** |
 | `--limit` | All | Only process the first N samples of the dataset (randomness is determined at conversion stage, see converter `--seed` above) |
@@ -284,7 +365,7 @@ first N samples in **original data order**.
 
 ### Review Execution (reviewers/)
 
-For each sample: `clone/fetch` → `checkout head_commit` → invoke reviewer → write `<safe_id>.json`.
+For each sample: prepare the repository according to `--repo-source` (default `auto`: HF snapshots first, GitHub partial-clone fallback) → `checkout head_commit` → invoke reviewer → write `<safe_id>.json`.
 Review progress includes a **progress bar** (completed / total + real-time rate + ETA), useful for
 estimating total runtime. Multi-repo concurrent progress is thread-safe (see "Concurrent Review" above).
 
@@ -398,5 +479,33 @@ Configure `JUDGE_API_KEY` in `evaluation/.env` and set `JUDGE_USE_MOCK=false`, t
 judge model (the evaluation stage reads this file automatically).
 
 **Q: Where are repos cloned? Will they be cloned repeatedly?**
-Repos are cloned to `evaluation/repo/<owner__name>`. The same repo is cached and reused — only `fetch` is
-run, never a repeated clone.
+Repositories are cached under `evaluation/repo/<owner__name>`. `--repo-source auto` first checks
+whether the cache already covers the current dataset; if so it reuses it, otherwise it downloads
+HF snapshots first and falls back to GitHub partial clones. Existing repositories are not fetched
+with `git fetch --all` on every review; missing base/target commits are fetched on demand by
+`ensure_commit_present`.
+
+**Q: HF snapshot downloads are slow or unavailable. What should I do?**
+The default endpoints are `https://hf-mirror.com` then `https://huggingface.co`; set `HF_ENDPOINT`
+or `--snapshot-endpoint` to use another mirror. Downloads are checked against `SHA256SUMS`, and
+valid existing archives are skipped. If HF is unreachable, `--repo-source auto` falls back to a
+GitHub partial clone (`tree:0` → blobless → full); you can also pass `--repo-source partial`
+explicitly. Use `pipeline snapshot --verify-only` to re-validate existing content.
+
+**Q: Can v1 use the HF snapshots?**
+Not completely. The snapshot repository has 46 repositories, while v1 has four licensing-sensitive
+repositories without snapshots (`CherryHQ/cherry-studio`, `dbeaver/dbeaver`, `n8n-io/n8n`,
+`wavetermdev/waveterm`). Use `--repo-source git` for v1, or let `auto` fall back to a partial clone.
+All 42 v2 repositories have snapshots.
+
+**Q: What happens when GitHub has reclaimed a target commit?**
+A partial clone cannot recover a commit that GitHub has garbage-collected; `git fetch` reports
+`not our ref` even through the PR ref. The repository is recorded as blocked in
+`partial_clone_manifest.json`, and affected instances surface as per-instance errors instead of
+fabricated results. Use `--repo-source snapshot` (or `auto` with HF available) for such datasets.
+Four v1 repositories are also absent from the snapshot set for licensing/availability reasons.
+
+**Q: Does the framework fetch existing repositories on every run?**
+No. Existing `repo/<owner__name>` caches are reused; missing base/target commits are fetched on
+demand by `ensure_commit_present`. This also applies to `--repo-source git`; use a fresh
+`--repo-dir` or run `git fetch` manually if you need newly published refs.

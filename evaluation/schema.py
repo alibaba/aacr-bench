@@ -15,6 +15,7 @@
       "base_commit": "5351469...",
       "head_commit": "9484e13...",
       "clone_url": "https://github.com/psf/requests.git",   // 可选，缺省按 repo 推导
+      "pr_url": "https://github.com/psf/requests/pull/5711", // optional, used by the partial-clone fallback
       "reference_comments": [
         {"path": "setup.py", "start_line": 46, "end_line": 46, "text": "...", "side": "left"}
       ]
@@ -98,6 +99,7 @@ class ReviewInstance:
     head_commit: str
     clone_url: Optional[str] = None
     reference_comments: List[ReferenceComment] = field(default_factory=list)
+    pr_url: Optional[str] = None
 
     @property
     def safe_id(self) -> str:
@@ -130,6 +132,10 @@ class ReviewInstance:
         if clone_url is not None and (not isinstance(clone_url, str) or not clone_url.strip()):
             raise SchemaError(f"{where}.clone_url: 若提供则必须是非空字符串")
 
+        pr_url = data.get("pr_url")
+        if pr_url is not None and (not isinstance(pr_url, str) or not pr_url.strip()):
+            raise SchemaError(f"{where}.pr_url: 若提供则必须是非空字符串")
+
         raw_comments = data.get("reference_comments", []) or []
         if not isinstance(raw_comments, list):
             raise SchemaError(f"{where}.reference_comments: 必须是数组")
@@ -145,6 +151,7 @@ class ReviewInstance:
             base_commit=base_commit.strip(),
             head_commit=head_commit.strip(),
             clone_url=clone_url.strip() if isinstance(clone_url, str) else None,
+            pr_url=pr_url.strip() if isinstance(pr_url, str) else None,
             reference_comments=reference_comments,
         )
 
@@ -158,6 +165,8 @@ class ReviewInstance:
         }
         if self.clone_url:
             payload["clone_url"] = self.clone_url
+        if self.pr_url:
+            payload["pr_url"] = self.pr_url
         return payload
 
 

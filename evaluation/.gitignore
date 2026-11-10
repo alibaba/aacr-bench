@@ -26,3 +26,6 @@ metrics/
 # Python 缓存
 __pycache__/
 *.pyc
+
+# 仓库快照下载缓存（tar.gz + SHA256SUMS）
+snapshots/

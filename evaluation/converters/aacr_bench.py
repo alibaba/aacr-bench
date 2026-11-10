@@ -209,6 +209,7 @@ def convert_record(record: Dict[str, Any]) -> Optional[ReviewInstance]:
         repo=str(repo).strip(),
         base_commit=str(base_commit).strip(),
         head_commit=str(head_commit).strip(),
+        pr_url=str(record.get("githubPrUrl")).strip() if record.get("githubPrUrl") else None,
         reference_comments=reference_comments,
     )
 

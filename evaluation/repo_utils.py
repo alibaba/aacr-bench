@@ -8,11 +8,24 @@ from __future__ import annotations
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Iterable, List, Optional
 
 
 class RepoError(Exception):
     """单条样本在 git 阶段出现可恢复错误时抛出。"""
+
+
+_BLOCKED_REPO_NAMES: set[str] = set()
+
+
+def set_blocked_repositories(repo_names: Iterable[str]) -> None:
+    """Record repositories that the partial-clone fallback could not prepare."""
+    global _BLOCKED_REPO_NAMES
+    _BLOCKED_REPO_NAMES = set(repo_names)
+
+
+def is_blocked_repository(repo_full_name: str) -> bool:
+    return repo_full_name in _BLOCKED_REPO_NAMES
 
 
 def log(message: str) -> None:
@@ -28,14 +41,18 @@ def run_command(
 ) -> subprocess.CompletedProcess:
     """运行子进程，不在非零退出码时抛异常（由调用方判断 returncode）。"""
     log(f"$ {' '.join(command)}" + (f"  (cwd={cwd})" if cwd else ""))
-    return subprocess.run(
-        command,
-        cwd=str(cwd) if cwd else None,
-        timeout=timeout_seconds,
-        capture_output=capture_output,
-        text=True,
-        check=False,
-    )
+    try:
+        return subprocess.run(
+            command,
+            cwd=str(cwd) if cwd else None,
+            timeout=timeout_seconds,
+            capture_output=capture_output,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as error:
+        log(f"Command not found: {command[0]}")
+        return subprocess.CompletedProcess(command, 127, "", str(error))
 
 
 def local_repo_path(repo_dir: Path, repo_full_name: str) -> Path:
@@ -45,15 +62,16 @@ def local_repo_path(repo_dir: Path, repo_full_name: str) -> Path:
 
 
 def clone_or_update_repo(clone_url: str, target_dir: Path) -> None:
-    """仓库不存在则 clone；已存在则 fetch 以确保后续 commit 可用。"""
+    """Reuse an existing repository; fetch missing commits on demand.
+
+    Snapshot repositories have no remote, and partial clones already prefetch
+    the endpoint commits. Running ``git fetch --all --tags`` before every review
+    is unnecessary and can trigger large network requests. Missing base/target
+    commits are fetched by ``ensure_commit_present`` instead.
+    """
     target_dir = Path(target_dir)
     if target_dir.exists() and (target_dir / ".git").exists():
-        log(f"Repo already cloned, fetching latest: {target_dir}")
-        result = run_command(
-            ["git", "fetch", "--all", "--tags"], cwd=target_dir, timeout_seconds=1800
-        )
-        if result.returncode != 0:
-            log(f"git fetch warning (continuing): {result.stderr.strip()}")
+        log(f"Repo already prepared, reusing: {target_dir}")
         return
 
     target_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -128,8 +146,15 @@ def prepare_repo(
 
     返回本地仓库路径。
     """
+    if is_blocked_repository(repo_full_name):
+        raise RepoError(
+            f"repository {repo_full_name} is blocked by the partial-clone fallback; "
+            "see partial_clone_manifest.json"
+        )
     repo_path = local_repo_path(repo_dir, repo_full_name)
     clone_or_update_repo(clone_url, repo_path)
     ensure_commit_present(repo_path, base_commit)
     checkout_commit(repo_path, head_commit)
-    return repo_path
+    # Reviewers run with cwd=repo_path; return an absolute path so tools that
+    # receive --repo (e.g. OCR) do not resolve it a second time.
+    return repo_path.resolve()
