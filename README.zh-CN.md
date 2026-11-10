@@ -8,6 +8,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-Paper-b31b1b.svg)](https://arxiv.org/abs/2601.19494)
 [![HuggingFace](https://img.shields.io/badge/HuggingFace-Data-yellow)](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench)
 ![](https://img.shields.io/badge/Dataset-v1.0-green.svg)
+![](https://img.shields.io/badge/Dataset-v2.0-green.svg)
 ![](https://img.shields.io/badge/Languages-10-orange.svg)
 ![](https://img.shields.io/badge/PRs-200-red.svg)
 
@@ -19,6 +20,20 @@
 AACR-Bench 是**业界首个多语言、仓库级上下文感知的代码评审评测数据集**，可用于评估大语言模型在自动代码评审任务中的表现。数据集包含来自50个活跃开源项目的200个真实Pull Request，覆盖10种主流编程语言，每个实例不仅包含代码变更，还保留了完整的仓库上下文，真实还原了代码评审的全过程。通过人类与LLM协同评审 + 人类专家多轮标注，确保了数据的高质量和全面性。
 
 ![AACR-Bench Overview](imgs/aacr-overview.jpg)
+
+## 🗂️ 数据集版本
+
+AACR-Bench 提供两个版本，均使用同一套嵌套评论结构和 9 个评论字段；v2 不包含 v1 的 `created_at` / `merged_at` 顶层字段。
+
+| 版本 | PR 数 | 仓库数 | 评审意见数 | Canonical 数据 | Hugging Face |
+|---|---:|---:|---:|---|---|
+| v1 | 200 | 50 | 2,145 条标注评论 | `dataset/positive_samples.json`、`dataset/negative_samples.json` | `data/v1/dataset.json` |
+| v2 | 151 | 42 | 944（全部为正确样本） | `dataset/v2/positive_samples.json` | `data/v2/dataset.json` |
+
+- **v1** 是原始版本。评测链路消费 `positive_samples.json`；`negative_samples.json` 保留为标注候选池。GitHub 当前副本为 1,506 条正例 + 639 条负例；HF 冻结的 v1 为 1,505 + 640，合计均为 2,145。
+- **v2** 保留 v1 中部分高价值评审意见，是仅正例子集，也是 Hugging Face 上的默认数据集配置。v2 canonical 使用 7 个顶层字段和 9 个评论字段，不包含 `created_at` / `merged_at`。v2 的所有评论都存放在 right 侧：2 条 v1 left 侧评论被重新锚定到 right，以匹配评测器生成的 right 侧评论；其余审计字段与 v1 一致。
+- **仓库快照**：[Alibaba-Aone/aacr-bench-repos](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench-repos) 提供 46 个仓库的 shallow 快照，v2 使用其中 42 个。4 个 v1 仓库因许可或可获取性限制未提供快照。评测链路默认从 Hugging Face 下载快照，失败时回退到 GitHub partial clone。
+- **快照许可**：每个压缩包保留对应上游仓库的原始许可；不提供集合级许可。本仓库的 Apache-2.0 仅覆盖本仓库代码，不覆盖快照中的第三方代码。使用快照必须遵守对应仓库的许可与署名要求。
 
 ## ✨ 核心特性
 ### 🌍 **多语言覆盖**
@@ -82,8 +97,19 @@ cd aacr-bench
 ```
 
 评测框架位于 [`evaluation/`](evaluation/) 目录，提供统一流水线：**数据加载 → 执行评审 → 执行评测**。支持三个评审系统：**OpenCodeReview (OCR)**、**Claude Code**、**Codex**。详细配置与用法见 [`evaluation/README.zh-CN.md`](evaluation/README.zh-CN.md)。
+
+AACR-Bench v2 的转换与 HF 仓库快照运行方式：
+
+```bash
+cd evaluation
+python -m converters.aacr_bench_v2 --validate
+python -m pipeline run --stage all --reviewer ocr \
+  --dataset data/aacr_bench_v2.jsonl --repo-source auto --limit 5 --run-id v2-baseline
+```
+
+`--repo-source auto` 会从 Hugging Face 下载当前 run 所用样本对应的仓库快照（当前 run 的仓库；如需全部 46 个包用 `--snapshot-scope all`）并校验，下载不可用时回退到 GitHub partial clone。加 `--preview` 可做零 LLM 成本的仓库准备检查（仍可能产生网络/磁盘开销）。
 ## 📈 数据概览
-### 数据集规模
+### 数据集规模（v1）
 <div>
 <table>
 <tr>
@@ -195,6 +221,7 @@ cd aacr-bench
 
 ## 🗺️ 路线图
 - [x] v1.0 (2026.01): 初始发布 - 200个PR，10种语言
+- [x] v2.0 (2026.11): 高价值仅正例子集 - 151个PR，944条评审意见，42个仓库
 
 ## 🌟 致谢
 - 感谢所有参与数据标注的贡献者，特别是完成15条以上有效标注的核心贡献者，完整名单见 [CONTRIBUTORS.md](CONTRIBUTORS.md)。
