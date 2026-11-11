@@ -1,0 +1,6 @@
+{
+  "filename": "positive_samples.json",
+  "url": "https://raw.githubusercontent.com/alibaba/aacr-bench/main/dataset/v2/positive_samples.json",
+  "sha256": "2e83975aba1ca06544ccecdee8d99ab7152bc1d02a3d86bce3022d8d4e3010ba",
+  "description": "AACR-Bench v2 positive samples: a subset of the AACR-Bench v1 positive samples; reference code review comments on real GitHub PRs."
+}

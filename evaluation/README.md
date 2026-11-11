@@ -33,7 +33,7 @@ evaluation/
 └── metrics/<benchmark>/<reviewer>/<run_id>/   # Evaluation metrics (mirrors results structure)
 ```
 
-> **Data directory convention**: Raw data goes under `benchmark/<benchmark name>/` (e.g., `benchmark/AACR-Bench/`).
+> **Data directory convention**: Raw data goes under `benchmark/<benchmark name>/` (e.g., `benchmark/AACR-Bench/v1/` and `benchmark/AACR-Bench/v2/`).
 > Converters read from there and output standard data to `data/<benchmark_key>.jsonl` (e.g., `data/aacr_bench.jsonl`),
 > named by benchmark to avoid collisions.
 
@@ -161,7 +161,7 @@ converter will read it by default, producing `data/<benchmark_key>.jsonl`. AACR-
 built-in:
 
 ```bash
-# AACR-Bench (raw data benchmark/AACR-Bench/ -> data/aacr_bench.jsonl)
+# AACR-Bench v1 (raw data benchmark/AACR-Bench/v1/ -> data/aacr_bench.jsonl)
 python -m converters.aacr_bench --validate
 
 # --validate: re-load with schema after conversion to verify output validity
@@ -169,7 +169,7 @@ python -m converters.aacr_bench --validate
 # --seed N: random seed for shuffling; makes the sample reproducible (for fixed evaluation subsets)
 # You can also explicitly specify input / output:
 python -m converters.aacr_bench \
-    --input benchmark/AACR-Bench/positive_samples.json \
+    --input benchmark/AACR-Bench/v1/positive_samples.json \
     --output data/aacr_bench.jsonl \
     --limit 30 --seed 42 --validate
 ```
@@ -348,7 +348,7 @@ results directory `results/<key>/`, and metrics directory `metrics/<key>/`.
 Use the built-in `converters/aacr_bench.py` as a reference example:
 
 1. **Provide raw data**: Commit a same-named `*.meta.json` (fields: `url`, `sha256`, optional
-   `filename`, `description`) under `benchmark/<benchmark name>/` (e.g. `benchmark/AACR-Bench/`).
+   `filename`, `description`) under `benchmark/<benchmark name>/` (e.g., `benchmark/AACR-Bench/v1/`).
    The converter reads it to **auto-download** and verify the data on first run (see
    `aacr_bench.py`'s `ensure_raw_file`); the data file itself is gitignored, never committed.
    `filename` (defaults to the meta's stem) lets the data file be named differently from the meta.
