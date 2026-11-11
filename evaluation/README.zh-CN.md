@@ -32,7 +32,7 @@ evaluation/
 └── metrics/<benchmark>/<reviewer>/<run_id>/   # 评测指标（与 results 镜像对齐）
 ```
 
-> **数据目录约定**：原始数据放 `benchmark/<benchmark名>/`（如 `benchmark/AACR-Bench/`），
+> **数据目录约定**：原始数据放 `benchmark/<benchmark名>/`（如 `benchmark/AACR-Bench/v1/`、`benchmark/AACR-Bench/v2/`），
 > 转换器读取后产出标准数据到 `data/<benchmark_key>.jsonl`（如 `data/aacr_bench.jsonl`），
 > 按 benchmark 命名避免多个 benchmark 互相覆盖。
 
@@ -154,7 +154,7 @@ set -a && source .env && set +a
 产出 `data/<benchmark_key>.jsonl`。当前已内置 AACR-Bench 的转换器：
 
 ```bash
-# AACR-Bench（原始数据 benchmark/AACR-Bench/ -> data/aacr_bench.jsonl）
+# AACR-Bench v1（原始数据 benchmark/AACR-Bench/v1/ -> data/aacr_bench.jsonl）
 python -m converters.aacr_bench --validate
 
 # --validate：转换后用 schema 重新加载校验，确保产物合法
@@ -162,7 +162,7 @@ python -m converters.aacr_bench --validate
 # --seed N：乱序随机种子，指定后随机可复现（用于固定评测子集；默认每次随机）
 # 也可显式指定输入 / 输出：
 python -m converters.aacr_bench \
-    --input benchmark/AACR-Bench/positive_samples.json \
+    --input benchmark/AACR-Bench/v1/positive_samples.json \
     --output data/aacr_bench.jsonl \
     --limit 30 --seed 42 --validate
 ```
@@ -330,7 +330,7 @@ failure scenario + 建议修复）。Codex 的 `severity` 字段仅存档，不�
 
 下面以已内置的 `converters/aacr_bench.py` 为实际范例：
 
-1. **准备原始数据**：在约定目录 `benchmark/<benchmark名>/`（如 `benchmark/AACR-Bench/`）下提交
+1. **准备原始数据**：在约定目录 `benchmark/<benchmark名>/`（如 `benchmark/AACR-Bench/v1/`）下提交
    一份同名的 `*.meta.json`（字段：`url`、`sha256`，可选 `filename`、`description`）。
    转换器据此**自动下载并校验**数据（参考 `aacr_bench.py` 的 `ensure_raw_file`）；数据文件本身被 gitignore，不提交。
    `filename`（缺省取 meta 的 stem）允许数据文件名与 meta 文件名不同。

@@ -13,7 +13,8 @@ AACR-Bench 原始字段映射：
     from_line/to_line  -> start_line / end_line（行号闭区间）
     side               -> side（"left" / "right"，评论附着在 diff 的哪一侧）
 
-原始数据约定：放在 benchmark/AACR-Bench/ 下；转换产物按 benchmark 命名为 data/aacr_bench.jsonl。
+原始数据约定：v1 放在 benchmark/AACR-Bench/v1/ 下；转换产物按 benchmark 命名为 data/aacr_bench.jsonl。
+v2 使用同目录的 v2/ 子目录（评测更新接入后使用）。
 不传 --input / --output 时即采用该约定，无需手填长路径。
 约定输入缺失时，按同名 positive_samples.meta.json 描述从远端拉取并校验后缓存到本地。
 
@@ -21,7 +22,7 @@ AACR-Bench 原始字段映射：
     python -m converters.aacr_bench [--limit 30] [--validate]
     # 或显式指定：
     python -m converters.aacr_bench \
-        --input benchmark/AACR-Bench/positive_samples.json \
+        --input benchmark/AACR-Bench/v1/positive_samples.json \
         --output data/aacr_bench.jsonl
 """
 from __future__ import annotations
@@ -47,7 +48,7 @@ from schema import ReferenceComment, ReviewInstance, load_instances  # noqa: E40
 # 本 benchmark 的约定：原始目录名 + 标准数据集 key
 BENCHMARK_NAME = "AACR-Bench"
 BENCHMARK_KEY = "aacr_bench"
-DEFAULT_INPUT = config.benchmark_raw_dir(BENCHMARK_NAME) / "positive_samples.json"
+DEFAULT_INPUT = config.benchmark_raw_dir(BENCHMARK_NAME) / "v1" / "positive_samples.json"
 DEFAULT_OUTPUT = config.dataset_path(BENCHMARK_KEY)
 
 # 从 githubPrUrl 解析 owner/name，如 https://github.com/FreeCAD/FreeCAD/pull/19411 -> FreeCAD/FreeCAD
