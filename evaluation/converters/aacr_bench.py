@@ -126,7 +126,9 @@ def ensure_raw_file(input_path: Path) -> Path:
     data_path.parent.mkdir(parents=True, exist_ok=True)
     print(f"[fetch] 本地缺失或校验未通过 {data_path}，从远端下载：\n  {url}")
     try:
-        with urllib.request.urlopen(url, timeout=60) as response:
+        with urllib.request.urlopen(
+            url, timeout=config.network_timeout_seconds()
+        ) as response:
             _stream_to_file(response, data_path)
     except urllib.error.HTTPError as error:
         raise SystemExit(

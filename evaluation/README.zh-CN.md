@@ -257,6 +257,9 @@ python -m pipeline run --reviewer ocr --dataset data/aacr_bench.jsonl \
 ```bash
 # 可选；默认 https://huggingface.co
 # export HF_ENDPOINT="https://your-hf-endpoint"
+
+# Hugging Face / GitHub 网络超时秒数（可选；默认 60）
+# export NETWORK_TIMEOUT_SECONDS="120"
 ```
 
 预检失败会打印实际访问的完整 URL：

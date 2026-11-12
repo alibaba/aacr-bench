@@ -29,7 +29,42 @@ SNAPSHOT_REPO_ID = "Alibaba-Aone/aacr-bench-repos"
 SNAPSHOT_REVISION = "main"
 DEFAULT_HF_ENDPOINT = "https://huggingface.co"
 HF_ENDPOINT_VAR = "HF_ENDPOINT"
-NETWORK_TIMEOUT_SECONDS = 15
+NETWORK_TIMEOUT_SECONDS = 60
+NETWORK_TIMEOUT_ENV_VAR = "NETWORK_TIMEOUT_SECONDS"
+ENV_FILE = EVALUATION_DIR / ".env"
+
+
+def _dotenv_value(name: str) -> Optional[str]:
+    """Read one value from evaluation/.env without mutating os.environ."""
+    try:
+        from dotenv import dotenv_values
+    except ImportError:
+        return None
+    if not ENV_FILE.exists():
+        return None
+    return dotenv_values(ENV_FILE).get(name)
+
+
+def network_timeout_seconds() -> int:
+    """Return the network timeout, allowing the env var to override the default."""
+    raw = os.environ.get(NETWORK_TIMEOUT_ENV_VAR)
+    if raw is None:
+        raw = _dotenv_value(NETWORK_TIMEOUT_ENV_VAR)
+    if raw is None or not raw.strip():
+        return NETWORK_TIMEOUT_SECONDS
+    try:
+        timeout = int(raw.strip())
+    except ValueError as error:
+        raise ValueError(
+            f"invalid {NETWORK_TIMEOUT_ENV_VAR}={raw!r}; "
+            "expected a positive integer number of seconds"
+        ) from error
+    if timeout <= 0:
+        raise ValueError(
+            f"invalid {NETWORK_TIMEOUT_ENV_VAR}={raw!r}; "
+            "expected a positive integer number of seconds"
+        )
+    return timeout
 
 # Dataset key -> data version. The dataset filename stem is also the
 # results/metrics directory key, so the mapping has to stay explicit.

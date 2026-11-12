@@ -395,6 +395,7 @@ class RepoPreparer:
         self.repo_dir = Path(repo_dir).resolve()
         self.archive_dir = Path(archive_dir).resolve()
         self.dataset_path = Path(dataset_path) if dataset_path else None
+        self.network_timeout_seconds = config.network_timeout_seconds()
         self._hf_checked = False
         self._hf_ok = False
         self._hf_lock = threading.Lock()
@@ -433,7 +434,7 @@ class RepoPreparer:
                 _hf_download(
                     f"repos/{SHA256SUMS_NAME}",
                     checksum_path,
-                    timeout=config.NETWORK_TIMEOUT_SECONDS,
+                    timeout=self.network_timeout_seconds,
                     force_download=True,
                 )
                 self._checksums = _parse_sha256sums(checksum_path)
@@ -458,7 +459,7 @@ class RepoPreparer:
                 _hf_download(
                     f"repos/{archive_name}",
                     destination,
-                    timeout=config.NETWORK_TIMEOUT_SECONDS,
+                    timeout=self.network_timeout_seconds,
                     force_download=(attempt > 0 or destination.exists()),
                 )
             except NetworkError as error:
@@ -480,7 +481,9 @@ class RepoPreparer:
                 self._github_ok = True
                 return True
             try:
-                _github_preflight(self.dataset_path)
+                _github_preflight(
+                    self.dataset_path, timeout=self.network_timeout_seconds
+                )
                 self._github_ok = True
             except NetworkError as error:
                 self._github_error = error
@@ -593,8 +596,10 @@ class RepoPreparer:
         return repo_path
 
 
-def _github_preflight(dataset_path: Path, timeout: int = config.NETWORK_TIMEOUT_SECONDS) -> str:
+def _github_preflight(dataset_path: Path, timeout: Optional[int] = None) -> str:
     _ensure_ca_bundle()
+    if timeout is None:
+        timeout = config.network_timeout_seconds()
     version = config.benchmark_version_from_dataset(Path(dataset_path))
     meta_path = config.benchmark_meta_path(version)
     if not meta_path.exists():

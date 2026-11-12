@@ -270,6 +270,9 @@ Network configuration:
 ```bash
 # Optional; defaults to https://huggingface.co
 # export HF_ENDPOINT="https://your-hf-endpoint"
+
+# Network timeout for HF/GitHub preflight and HTTP downloads (seconds; default 60)
+# export NETWORK_TIMEOUT_SECONDS="120"
 ```
 
 Preflight errors include the exact URL attempted, for example:
