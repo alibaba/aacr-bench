@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -396,11 +397,12 @@ class RepoPreparer:
         self.dataset_path = Path(dataset_path) if dataset_path else None
         self._hf_checked = False
         self._hf_ok = False
+        self._hf_lock = threading.Lock()
         self._checksums: Optional[Dict[str, str]] = None
         self._github_checked = False
         self._github_ok = False
+        self._github_lock = threading.Lock()
         self._github_error: Optional[NetworkError] = None
-        self._github_logged = False
 
     def _local_checksum(self, archive_name: str) -> Optional[str]:
         checksum_path = self.archive_dir / "repos" / SHA256SUMS_NAME
@@ -422,23 +424,24 @@ class RepoPreparer:
         return archive
 
     def _hf_ready(self) -> bool:
-        if self._hf_checked:
+        with self._hf_lock:
+            if self._hf_checked:
+                return self._hf_ok
+            self._hf_checked = True
+            checksum_path = self.archive_dir / "repos" / SHA256SUMS_NAME
+            try:
+                _hf_download(
+                    f"repos/{SHA256SUMS_NAME}",
+                    checksum_path,
+                    timeout=config.NETWORK_TIMEOUT_SECONDS,
+                    force_download=True,
+                )
+                self._checksums = _parse_sha256sums(checksum_path)
+                self._hf_ok = True
+            except NetworkError as error:
+                log(f"[network] HF unavailable: {error.url}: {error.detail}")
+                self._hf_ok = False
             return self._hf_ok
-        self._hf_checked = True
-        checksum_path = self.archive_dir / "repos" / SHA256SUMS_NAME
-        try:
-            _hf_download(
-                f"repos/{SHA256SUMS_NAME}",
-                checksum_path,
-                timeout=config.NETWORK_TIMEOUT_SECONDS,
-                force_download=True,
-            )
-            self._checksums = _parse_sha256sums(checksum_path)
-            self._hf_ok = True
-        except NetworkError as error:
-            log(f"[network] HF unavailable: {error.url}: {error.detail}")
-            self._hf_ok = False
-        return self._hf_ok
 
     def _download_archive(self, repo: str) -> Optional[Path]:
         archive_name = _archive_name(repo)
@@ -469,27 +472,21 @@ class RepoPreparer:
         return None
 
     def _github_ready(self) -> bool:
-        if self._github_checked:
-            if not self._github_ok and self._github_error is not None and not self._github_logged:
-                log(
-                    f"[network] GitHub unavailable: "
-                    f"{self._github_error.url}: {self._github_error.detail}"
-                )
-                self._github_logged = True
+        with self._github_lock:
+            if self._github_checked:
+                return self._github_ok
+            self._github_checked = True
+            if self.dataset_path is None:
+                self._github_ok = True
+                return True
+            try:
+                _github_preflight(self.dataset_path)
+                self._github_ok = True
+            except NetworkError as error:
+                self._github_error = error
+                self._github_ok = False
+                log(f"[network] GitHub unavailable: {error.url}: {error.detail}")
             return self._github_ok
-        self._github_checked = True
-        if self.dataset_path is None:
-            self._github_ok = True
-            return True
-        try:
-            _github_preflight(self.dataset_path)
-            self._github_ok = True
-        except NetworkError as error:
-            self._github_error = error
-            self._github_ok = False
-            log(f"[network] GitHub unavailable: {error.url}: {error.detail}")
-            self._github_logged = True
-        return self._github_ok
 
     def _partial_clone(
         self,
