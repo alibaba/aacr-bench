@@ -24,6 +24,45 @@ DEFAULT_REPO_DIR = EVALUATION_DIR / "repo"
 DEFAULT_RESULTS_DIR = EVALUATION_DIR / "results"
 DEFAULT_METRICS_DIR = EVALUATION_DIR / "metrics"
 
+# Hugging Face repository snapshot configuration.
+SNAPSHOT_REPO_ID = "Alibaba-Aone/aacr-bench-repos"
+SNAPSHOT_REVISION = "main"
+DEFAULT_HF_ENDPOINT = "https://huggingface.co"
+HF_ENDPOINT_VAR = "HF_ENDPOINT"
+NETWORK_TIMEOUT_SECONDS = 15
+
+# Dataset key -> data version. The dataset filename stem is also the
+# results/metrics directory key, so the mapping has to stay explicit.
+BENCHMARK_VERSIONS = {
+    "aacr_bench": "v1",
+    "aacr_bench_v2": "v2",
+}
+
+
+def benchmark_version_from_dataset(dataset_path_value: Path) -> str:
+    """Return the AACR-Bench data version for a dataset path."""
+    key = benchmark_name_from_dataset(dataset_path_value)
+    if key in BENCHMARK_VERSIONS:
+        return BENCHMARK_VERSIONS[key]
+    # Allow renamed copies such as aacr_bench_v2_debug.jsonl while keeping
+    # the two official keys authoritative.
+    lowered = key.lower()
+    if "v2" in lowered:
+        return "v2"
+    if "v1" in lowered:
+        return "v1"
+    raise ValueError(f"unknown AACR-Bench dataset key: {key}")
+
+
+def benchmark_meta_path(version: str) -> Path:
+    """Return the git-tracked meta.json path for a data version."""
+    return benchmark_raw_dir("AACR-Bench") / version / "positive_samples.meta.json"
+
+
+def default_snapshot_archive_dir(repo_dir: Path) -> Path:
+    """Keep archives next to the repository cache, not in the workspace root."""
+    return Path(repo_dir).resolve().parent / "snapshots"
+
 
 def benchmark_raw_dir(benchmark_name: str) -> Path:
     """某 benchmark 的原始数据目录：benchmark/<benchmark名>/。"""

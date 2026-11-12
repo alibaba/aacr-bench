@@ -83,6 +83,25 @@ cd aacr-bench
 
 评测框架位于 [`evaluation/`](evaluation/) 目录，提供统一流水线：**数据加载 → 执行评审 → 执行评测**。支持三个评审系统：**OpenCodeReview (OCR)**、**Claude Code**、**Codex**。详细配置与用法见 [`evaluation/README.zh-CN.md`](evaluation/README.zh-CN.md)。
 ## 📈 数据概览
+
+### 数据集版本
+
+- **v1**：[`dataset/v1/positive_samples.json`](dataset/v1/positive_samples.json) — 196 个 PR / 1,506 条参考评审意见；`dataset/v1/negative_samples.json` 为负样本候选。
+- **v2**：[`dataset/v2/positive_samples.json`](dataset/v2/positive_samples.json) — 151 个 PR / 944 条高价值参考评审意见，是 v1 的子集。
+
+评测转换器显式选择版本：
+
+```bash
+cd evaluation
+python -m converters.aacr_bench --version v1 --validate
+python -m converters.aacr_bench --version v2 --validate
+```
+
+评测使用的仓库快照发布在
+[`Alibaba-Aone/aacr-bench-repos`](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench-repos)。
+固定的自动仓库准备流程（本地缓存 → HF 快照 → GitHub partial clone）见
+[`evaluation/README.zh-CN.md`](evaluation/README.zh-CN.md)。
+
 ### 数据集规模
 <div>
 <table>
