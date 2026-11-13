@@ -14,7 +14,7 @@ evaluation/
 ├── pipeline.py            # CLI 入口 + 编排：python -m pipeline run ...
 ├── schema.py              # 标准数据格式（dataclass）+ JSONL 加载校验
 ├── config.py              # 路径 / 环境变量 / 命名规则集中配置
-├── repo_utils.py          # git clone / checkout / 清理工作区 公共逻辑
+├── repo_utils.py          # Git 操作 + 按需仓库准备（缓存/HF/GitHub）
 ├── reviewers/
 │   ├── ocr.py             # OCR（OpenCodeReview）评审器
 │   ├── claude.py          # Claude Code 评审器（含 MCP 增量上报 + 多级兜底）
@@ -28,6 +28,7 @@ evaluation/
 ├── benchmark/<名字>/      # 各 benchmark 的原始数据（提交 *.meta.json 描述，数据首次运行时自动下载并校验）
 ├── data/<名字>.jsonl      # 转换后的标准格式数据集（按 benchmark 命名）
 ├── repo/                  # 仓库 clone 缓存（<owner__name>，自动生成）
+├── snapshots/             # HF 快照压缩包 + 解压仓库缓存（repo-dir 在其他位置时）
 ├── results/<benchmark>/<reviewer>/<run_id>/   # 评审结果（每次 run 独立目录，防覆盖）
 └── metrics/<benchmark>/<reviewer>/<run_id>/   # 评测指标（与 results 镜像对齐）
 ```
@@ -155,7 +156,10 @@ set -a && source .env && set +a
 
 ```bash
 # AACR-Bench v1（原始数据 benchmark/AACR-Bench/v1/ -> data/aacr_bench.jsonl）
-python -m converters.aacr_bench --validate
+python -m converters.aacr_bench --version v1 --validate
+
+# AACR-Bench v2（151 PR / 944 评论 -> data/aacr_bench_v2.jsonl）
+python -m converters.aacr_bench --version v2 --validate
 
 # --validate：转换后用 schema 重新加载校验，确保产物合法
 # --limit N：先把全部样本乱序，再取前 N 条（随机抽样，不传则全量）
@@ -174,8 +178,9 @@ python -m converters.aacr_bench \
 
 | 参数 | 默认值 | 说明 |
 | ---- | ------ | ---- |
-| `--input` | 约定路径 | 原始数据文件路径（默认 `benchmark/<benchmark名>/<原始文件>`） |
-| `--output` | 约定路径 | 输出标准格式 JSONL 路径（默认 `data/<key>.jsonl`） |
+| `--version` | `v1` | AACR-Bench 数据版本：`v1` 或 `v2` |
+| `--input` | 约定路径 | 原始数据文件路径（默认 `benchmark/AACR-Bench/<version>/positive_samples.json`） |
+| `--output` | 约定路径 | 输出标准格式 JSONL 路径（v1 默认 `data/aacr_bench.jsonl`，v2 默认 `data/aacr_bench_v2.jsonl`） |
 | `--limit` | 全部 | 先整体乱序再取前 N 条（随机抽样，不传则全量） |
 | `--seed` | 每次随机 | 乱序随机种子；指定后随机可复现（用于固定评测子集） |
 | `--validate` | 关 | 转换后用 schema 重新加载校验，确保产物合法 |
@@ -210,7 +215,7 @@ python -m pipeline run --reviewer {ocr|claude|codex} --dataset <标准JSONL> [op
 | `--reviewer` | （必填） | 评审器：`ocr` / `claude` / `codex` |
 | `--dataset` | （必填） | 标准格式数据集路径，如 `data/aacr_bench.jsonl` |
 | `--stage` | `all` | `all`（评审+评测）/ `review`（仅评审）/ `eval`（仅评测） |
-| `--repo-dir` | `repo/` | 仓库 clone 目录（缓存复用） |
+| `--repo-dir` | `repo/` | 仓库缓存目录（自动复用） |
 | `--results-dir` | `results/<benchmark>/<reviewer>/<run_id>` | 直接指定结果目录（高级用法，绕过 run 机制）；缺省按 dataset 自动推导 |
 | `--run-id` | 时间戳 | 本次 run 的目录名（如 `baseline`、`v2`）；review 不传则自动用时间戳命名；**eval 阶段必须显式指定** |
 | `--limit` | 全部 | 只处理标准数据集的前 N 条（数据集的随机性已在转换阶段决定，见上方转换器 `--seed`） |
@@ -222,6 +227,47 @@ python -m pipeline run --reviewer {ocr|claude|codex} --dataset <标准JSONL> [op
 | `--max-tools` | `30` | OCR 每个文件最大工具调用轮数（控制单文件评审深度），仅 ocr 评审器有效 |
 | `--concurrency` | `1` | 评审阶段并发的 repo 组数（`1`=完全串行）；详见下方「并发评审」 |
 | `--preview` | 关 | 只 clone/checkout，不真正调用评审 LLM |
+
+### 仓库来源与 HF 快照
+
+仓库准备由 `prepare_repo` 按仓库逐个、按需执行，顺序如下：
+
+1. 当 `repo/<owner__name>` 为有效 Git 工作树且包含所需 commit 时，直接复用。
+2. 否则，当 `snapshots/repos/<owner__name>.tar.gz` 缓存存在时，直接解压复用。
+3. 否则，从 Hugging Face 快照仓 `Alibaba-Aone/aacr-bench-repos` 获取该仓库归档，校验
+   SHA-256 后通过安全解压流程解压。
+4. 若 Hugging Face 不可用或快照未覆盖该仓库，则通过 GitHub partial clone 获取，依次尝试
+   `--filter=tree:0`、`--filter=blob:none`，最后回退完整 clone。
+5. 检出 `base`、`merge-base`、`target`，并在 `GIT_NO_LAZY_FETCH=1` 下验证三点 diff，
+   以避免验证期间发生隐式 fetch。
+
+因此，`pipeline run` 仅准备当前样本所引用的仓库，不执行数据集级预准备阶段。
+
+```bash
+# 来源顺序固定：本地缓存 → HF 快照 → GitHub partial clone
+python -m pipeline run --reviewer ocr --dataset data/aacr_bench_v2.jsonl \
+  --run-id v2-smoke --limit 2 --preview
+
+python -m pipeline run --reviewer ocr --dataset data/aacr_bench.jsonl \
+  --run-id v1-smoke --limit 2 --preview
+```
+
+网络配置：
+
+```bash
+# 可选；默认 https://huggingface.co
+# export HF_ENDPOINT="https://your-hf-endpoint"
+
+# Hugging Face / GitHub 网络超时秒数（可选；默认 60）
+# export NETWORK_TIMEOUT_SECONDS="120"
+```
+
+预检失败会打印实际访问的完整 URL：
+
+```text
+[network] HF unavailable: <endpoint>/datasets/Alibaba-Aone/aacr-bench-repos/resolve/main/repos/SHA256SUMS: <error>
+[network] GitHub unavailable: <版本 meta URL>: <error>
+```
 
 ### 并发评审（`--concurrency`）
 

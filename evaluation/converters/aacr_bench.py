@@ -13,13 +13,15 @@ AACR-Bench 原始字段映射：
     from_line/to_line  -> start_line / end_line（行号闭区间）
     side               -> side（"left" / "right"，评论附着在 diff 的哪一侧）
 
-原始数据约定：v1 放在 benchmark/AACR-Bench/v1/ 下；转换产物按 benchmark 命名为 data/aacr_bench.jsonl。
-v2 使用同目录的 v2/ 子目录（评测更新接入后使用）。
-不传 --input / --output 时即采用该约定，无需手填长路径。
+原始数据约定：
+  v1 放在 benchmark/AACR-Bench/v1/ 下，产物为 data/aacr_bench.jsonl；
+  v2 放在 benchmark/AACR-Bench/v2/ 下，产物为 data/aacr_bench_v2.jsonl。
+不传 --input / --output 时按 --version 采用对应约定，无需手填长路径。
 约定输入缺失时，按同名 positive_samples.meta.json 描述从远端拉取并校验后缓存到本地。
 
 用法（在 evaluation/ 目录内、已激活 venv）：
-    python -m converters.aacr_bench [--limit 30] [--validate]
+    python -m converters.aacr_bench --version v1 [--limit 30] [--validate]
+    python -m converters.aacr_bench --version v2 [--limit 30] [--validate]
     # 或显式指定：
     python -m converters.aacr_bench \
         --input benchmark/AACR-Bench/v1/positive_samples.json \
@@ -48,8 +50,20 @@ from schema import ReferenceComment, ReviewInstance, load_instances  # noqa: E40
 # 本 benchmark 的约定：原始目录名 + 标准数据集 key
 BENCHMARK_NAME = "AACR-Bench"
 BENCHMARK_KEY = "aacr_bench"
-DEFAULT_INPUT = config.benchmark_raw_dir(BENCHMARK_NAME) / "v1" / "positive_samples.json"
-DEFAULT_OUTPUT = config.dataset_path(BENCHMARK_KEY)
+BENCHMARK_KEY_V2 = "aacr_bench_v2"
+
+VERSION_CONFIG = {
+    "v1": {
+        "input": config.benchmark_raw_dir(BENCHMARK_NAME) / "v1" / "positive_samples.json",
+        "output": config.dataset_path(BENCHMARK_KEY),
+    },
+    "v2": {
+        "input": config.benchmark_raw_dir(BENCHMARK_NAME) / "v2" / "positive_samples.json",
+        "output": config.dataset_path(BENCHMARK_KEY_V2),
+    },
+}
+DEFAULT_INPUT = VERSION_CONFIG["v1"]["input"]
+DEFAULT_OUTPUT = VERSION_CONFIG["v1"]["output"]
 
 # 从 githubPrUrl 解析 owner/name，如 https://github.com/FreeCAD/FreeCAD/pull/19411 -> FreeCAD/FreeCAD
 _GITHUB_PR_PATTERN = re.compile(r"github\.com/([^/]+)/([^/]+)/pull/\d+", re.IGNORECASE)
@@ -112,7 +126,9 @@ def ensure_raw_file(input_path: Path) -> Path:
     data_path.parent.mkdir(parents=True, exist_ok=True)
     print(f"[fetch] 本地缺失或校验未通过 {data_path}，从远端下载：\n  {url}")
     try:
-        with urllib.request.urlopen(url, timeout=60) as response:
+        with urllib.request.urlopen(
+            url, timeout=config.network_timeout_seconds()
+        ) as response:
             _stream_to_file(response, data_path)
     except urllib.error.HTTPError as error:
         raise SystemExit(
@@ -262,16 +278,22 @@ def convert_file(
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="AACR-Bench JSON -> 标准格式转换器")
     parser.add_argument(
+        "--version",
+        choices=("v1", "v2"),
+        default="v1",
+        help="数据版本；v1 默认读 benchmark/AACR-Bench/v1，v2 默认读 v2",
+    )
+    parser.add_argument(
         "--input",
         type=Path,
-        default=DEFAULT_INPUT,
-        help=f"AACR-Bench 原始 JSON 路径（默认 {DEFAULT_INPUT}）",
+        default=None,
+        help="AACR-Bench 原始 JSON 路径（缺省按 --version 选择）",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=DEFAULT_OUTPUT,
-        help=f"输出标准格式 JSONL 路径（默认 {DEFAULT_OUTPUT}）",
+        default=None,
+        help="输出标准格式 JSONL 路径（缺省按 --version 选择）",
     )
     parser.add_argument(
         "--limit", type=int, default=None, help="乱序后只转换前 N 条（随机抽样）"
@@ -289,10 +311,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    convert_file(args.input, args.output, args.limit, args.seed)
+    defaults = VERSION_CONFIG[args.version]
+    input_path = args.input if args.input is not None else defaults["input"]
+    output_path = args.output if args.output is not None else defaults["output"]
+
+    convert_file(input_path, output_path, args.limit, args.seed)
 
     if args.validate:
-        instances = load_instances(args.output)
+        instances = load_instances(output_path)
         print(f"校验通过：{len(instances)} 条标准格式样本可被 schema 正确加载")
     return 0
 

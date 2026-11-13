@@ -83,6 +83,25 @@ cd aacr-bench
 The evaluation framework is in the [`evaluation/`](evaluation/) directory, which provides a unified pipeline: **data loading → review execution → evaluation**. It supports three reviewers: **OpenCodeReview (OCR)**, **Claude Code**, and **Codex**. See [`evaluation/README.md`](evaluation/README.md) for detailed setup and usage.
 
 ## 📈 Data Overview
+
+### Dataset Versions
+
+- **v1**: [`dataset/v1/positive_samples.json`](dataset/v1/positive_samples.json) — 196 PRs / 1,506 reference comments; `dataset/v1/negative_samples.json` contains the negative candidates.
+- **v2**: [`dataset/v2/positive_samples.json`](dataset/v2/positive_samples.json) — 151 PRs / 944 high-value reference comments, a subset of v1.
+
+The evaluation converter selects a version explicitly:
+
+```bash
+cd evaluation
+python -m converters.aacr_bench --version v1 --validate
+python -m converters.aacr_bench --version v2 --validate
+```
+
+Repository snapshots used by the evaluation pipeline are published separately at
+[`Alibaba-Aone/aacr-bench-repos`](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench-repos).
+See [`evaluation/README.md`](evaluation/README.md) for the fixed automatic
+repository-preparation flow (local cache → HF snapshot → GitHub partial clone).
+
 ### Dataset Scale
 <div>
 <table>

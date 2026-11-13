@@ -15,7 +15,7 @@ evaluation/
 ├── pipeline.py            # CLI entry point + orchestration: python -m pipeline run ...
 ├── schema.py              # Standard data format (dataclass) + JSONL loading & validation
 ├── config.py              # Centralized paths / env vars / naming conventions
-├── repo_utils.py          # Shared git clone / checkout / workspace cleanup logic
+├── repo_utils.py          # Git operations + lazy repository preparation (cache/HF/GitHub)
 ├── reviewers/
 │   ├── ocr.py             # OCR (OpenCodeReview) reviewer
 │   ├── claude.py          # Claude Code reviewer (MCP incremental reporting + multi-level fallback)
@@ -29,6 +29,7 @@ evaluation/
 ├── benchmark/<name>/      # Raw data for each benchmark (data described by *.meta.json, auto-downloaded on first run)
 ├── data/<name>.jsonl      # Converted standard format datasets (named by benchmark)
 ├── repo/                  # Repository clone cache (<owner__name>, auto-generated)
+├── snapshots/             # HF snapshot archives + extracted repo cache when --repo-dir is elsewhere
 ├── results/<benchmark>/<reviewer>/<run_id>/   # Review results (isolated per run, no overwrites)
 └── metrics/<benchmark>/<reviewer>/<run_id>/   # Evaluation metrics (mirrors results structure)
 ```
@@ -162,7 +163,10 @@ built-in:
 
 ```bash
 # AACR-Bench v1 (raw data benchmark/AACR-Bench/v1/ -> data/aacr_bench.jsonl)
-python -m converters.aacr_bench --validate
+python -m converters.aacr_bench --version v1 --validate
+
+# AACR-Bench v2 (151 PR / 944 comments -> data/aacr_bench_v2.jsonl)
+python -m converters.aacr_bench --version v2 --validate
 
 # --validate: re-load with schema after conversion to verify output validity
 # --limit N: shuffle all records then take the first N (random sampling; omit for full dataset)
@@ -181,8 +185,9 @@ python -m converters.aacr_bench \
 
 | Parameter | Default | Description |
 | --------- | ------- | ----------- |
-| `--input` | Conventional path | Raw data file path (default `benchmark/<benchmark name>/<raw file>`) |
-| `--output` | Conventional path | Output standard JSONL path (default `data/<key>.jsonl`) |
+| `--version` | `v1` | AACR-Bench data version: `v1` or `v2` |
+| `--input` | Conventional path | Raw data file path (default `benchmark/AACR-Bench/<version>/positive_samples.json`) |
+| `--output` | Conventional path | Output standard JSONL path (default `data/aacr_bench.jsonl` for v1, `data/aacr_bench_v2.jsonl` for v2) |
 | `--limit` | All | Shuffle then take first N (random sampling; omit for full dataset) |
 | `--seed` | Random each time | Random seed for shuffling; makes the sample reproducible |
 | `--validate` | Off | Re-load with schema after conversion to verify output validity |
@@ -217,7 +222,7 @@ python -m pipeline run --reviewer {ocr|claude|codex} --dataset <standard JSONL> 
 | `--reviewer` | (required) | Reviewer: `ocr` / `claude` / `codex` |
 | `--dataset` | (required) | Standard format dataset path, e.g. `data/aacr_bench.jsonl` |
 | `--stage` | `all` | `all` (review + eval) / `review` (review only) / `eval` (eval only) |
-| `--repo-dir` | `repo/` | Repository clone directory (cached for reuse) |
+| `--repo-dir` | `repo/` | Repository cache directory (reused automatically) |
 | `--results-dir` | `results/<benchmark>/<reviewer>/<run_id>` | Directly specify results directory (advanced, bypasses run mechanism); auto-derived from dataset otherwise |
 | `--run-id` | Timestamp | Directory name for this run (e.g. `baseline`, `v2`); auto-generated timestamp if omitted for review; **must be explicitly specified for eval** |
 | `--limit` | All | Only process the first N samples of the dataset (randomness is determined at conversion stage, see converter `--seed` above) |
@@ -229,6 +234,53 @@ python -m pipeline run --reviewer {ocr|claude|codex} --dataset <standard JSONL> 
 | `--max-tools` | `30` | OCR max tool call rounds per file (controls per-file review depth), for ocr reviewer only |
 | `--concurrency` | `1` | Number of concurrent repo groups during review (`1` = fully serial); see "Concurrent Review" below |
 | `--preview` | Off | Clone/checkout only, do not actually invoke the review LLM |
+
+### Repository Sources and HF Snapshots
+
+Repository preparation is performed lazily by `prepare_repo`, one repository at a time, in the
+following order:
+
+1. Reuse the existing worktree at `repo/<owner__name>` when it is a valid Git repository and
+   contains the required commits.
+2. Otherwise, reuse the cached snapshot archive at
+   `snapshots/repos/<owner__name>.tar.gz` when it is present.
+3. Otherwise, retrieve the repository archive from the Hugging Face snapshot repository
+   `Alibaba-Aone/aacr-bench-repos`, verify its SHA-256 digest, and extract it through the safe
+   extraction path.
+4. If Hugging Face is unavailable or the snapshot does not cover the repository, obtain it through
+   a GitHub partial clone, escalating from `--filter=tree:0` to `--filter=blob:none` and finally a
+   full clone.
+5. Check out `base`, `merge-base`, and `target`, then validate the three-dot diff under
+   `GIT_NO_LAZY_FETCH=1` to prevent implicit fetches during validation.
+
+Accordingly, `pipeline run` prepares only the repositories referenced by the loaded samples; no
+dataset-level preparation phase is performed.
+
+```bash
+# The source order is fixed: local cache -> HF snapshot -> GitHub partial clone.
+python -m pipeline run --reviewer ocr --dataset data/aacr_bench_v2.jsonl \
+  --run-id v2-smoke --limit 2 --preview
+
+python -m pipeline run --reviewer ocr --dataset data/aacr_bench.jsonl \
+  --run-id v1-smoke --limit 2 --preview
+```
+
+Network configuration:
+
+```bash
+# Optional; defaults to https://huggingface.co
+# export HF_ENDPOINT="https://your-hf-endpoint"
+
+# Network timeout for HF/GitHub preflight and HTTP downloads (seconds; default 60)
+# export NETWORK_TIMEOUT_SECONDS="120"
+```
+
+Preflight errors include the exact URL attempted, for example:
+
+```text
+[network] HF unavailable: <endpoint>/datasets/Alibaba-Aone/aacr-bench-repos/resolve/main/repos/SHA256SUMS: <error>
+[network] GitHub unavailable: <version meta url>: <error>
+```
 
 ### Concurrent Review (`--concurrency`)
 
