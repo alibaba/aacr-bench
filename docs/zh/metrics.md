@@ -7,7 +7,7 @@ AACR-Bench 采用**文件级语义覆盖**指标体系评估代码评审模型�
 
 ```mermaid
 graph TD
-    A[文件级语义指标] --> B[准确率]
+    A[文件级语义指标] --> B[精确率]
     A --> C[召回率]
     A --> D[平衡分数]
 
@@ -26,9 +26,9 @@ graph TD
 2. **每条生成评论一次裁判调用。** 每条生成评论与同文件内全部参考评论
    组成的编号列表在一次裁判模型调用中比对，裁判返回所有表达相同问题的
    参考评论编号——一条生成评论可覆盖多条参考评论（一对多覆盖）。
-3. **准确率贪心去重。** 按生成顺序，一条生成评论只有在命中至少一条此前
-   未被覆盖的参考评论时才计入准确率（`hit_new_gt`）；重复覆盖已被覆盖
-   参考的评论属重复命中，不计入准确率分子。
+3. **精确率贪心去重。** 按生成顺序，一条生成评论只有在命中至少一条此前
+   未被覆盖的参考评论时才计入精确率（`hit_new_gt`）；重复覆盖已被覆盖
+   参考的评论属重复命中，不计入精确率分子。
 
 找不到结果文件的样本计入 `missing_instances`，不计入任何指标分母。所有
 比率保留 3 位小数。
@@ -43,7 +43,7 @@ graph TD
 
 #### generated_notes（生成评论总数）
 - 定义：模型在所有已评测样本上生成的评论总数
-- 作用：准确率的分母；包含有效与无效评论
+- 作用：精确率的分母；包含有效与无效评论
 
 #### matched_file_semantic_notes（被覆盖参考评论数）
 - 定义：被至少一条生成评论覆盖的参考评论数（一对多匹配下去重）
@@ -52,7 +52,7 @@ graph TD
 #### matched_generated_notes（有效生成评论数）
 - 定义：命中至少一条此前未被覆盖参考评论的生成评论数
   （`hit_new_gt = true`）；重复命中不计
-- 作用：准确率的分子
+- 作用：精确率的分子
 
 样本量字段 `total_instances` / `candidate_instances` /
 `evaluated_instances` / `missing_instances` 记录数据集中被考虑与实际
@@ -60,7 +60,7 @@ graph TD
 
 ### 2. 性能指标
 
-**file_semantic_match_rate（准确率）**：贡献了新 ground-truth 覆盖的生成
+**file_semantic_match_rate（精确率）**：贡献了新 ground-truth 覆盖的生成
 评论比例
 
 ```python
@@ -73,7 +73,7 @@ file_semantic_match_rate = matched_generated_notes / generated_notes
 file_semantic_recall_rate = matched_file_semantic_notes / expected_notes
 ```
 
-**balanced_score（平衡分数）**：准确率与召回率的调和平均（二者均为 0 时
+**balanced_score（平衡分数）**：精确率与召回率的调和平均（二者均为 0 时
 为 0）
 
 ```python
@@ -90,7 +90,7 @@ balanced_score = 2 * file_semantic_match_rate * file_semantic_recall_rate \
   `comments` 数组）
 - `judge_reason`：裁判对每条参考评论的判定理由
 - `hit_new_gt`：是否命中了至少一条此前未被覆盖的参考评论（false 表示
-  重复命中，不计入准确率）
+  重复命中，不计入精确率）
 
 ### 4. 用量统计
 
@@ -124,27 +124,27 @@ path → side → line(k) → semantic
 
 #### matched_semantic_notes（语义匹配评论数）
 - 定义：找到了语义等价生成评论的参考评论数
-- 作用：同时作为语义准确率与召回率的分子——一对一消耗下它等于被语义
+- 作用：同时作为语义精确率与召回率的分子——一对一消耗下它等于被语义
   匹配消耗的生成评论数
 
 #### matched_line_notes（行号匹配评论数）
 - 定义：位置被生成评论命中的参考评论数（路径与侧别相等，行号区间重叠或
   距离 ≤ k）
-- 作用：同时作为行号准确率与召回率的分子
+- 作用：同时作为行号精确率与召回率的分子
 
 分母 `expected_notes` 与 `generated_notes` 与文件级体系共用。
 
 ### 旧指标计算
 
-#### 准确率指标
+#### 精确率指标
 
-**semantic_match_rate（语义准确率）**：语义匹配上标注评论的生成评论比例
+**semantic_match_rate（语义精确率）**：语义匹配上标注评论的生成评论比例
 
 ```python
 semantic_match_rate = matched_semantic_notes / generated_notes
 ```
 
-**line_match_rate（行级准确率）**：精确定位到标注评论的生成评论比例
+**line_match_rate（行级精确率）**：精确定位到标注评论的生成评论比例
 
 ```python
 line_match_rate = matched_line_notes / generated_notes
@@ -166,7 +166,7 @@ line_recall_rate = matched_line_notes / expected_notes
 
 #### F1 指标
 
-**semantic_f1 / line_f1**：各自准确率 / 召回率的调和平均（二者均为 0 时
+**semantic_f1 / line_f1**：各自精确率 / 召回率的调和平均（二者均为 0 时
 为 0）
 
 ```python

@@ -1,62 +1,73 @@
-# evaluation — Unified Code Review Evaluation Framework
+# AACR-Bench Evaluation Pipeline
 
-Integrates **data loading → review execution → evaluation** into a single configurable pipeline.
-
-Core goal: define a **standard data format**. For any new benchmark, just write a converter
-to transform it into the standard format, then run review and evaluation with **one command** —
-no framework code changes needed.
-
----
+English | [简体中文](README.zh-CN.md)
 
 ## Directory Structure
 
-```
+```text
 evaluation/
-├── pipeline.py            # CLI entry point + orchestration: python -m pipeline run ...
-├── schema.py              # Standard data format (dataclass) + JSONL loading & validation
-├── config.py              # Centralized paths / env vars / naming conventions
-├── repo_utils.py          # Shared git clone / checkout / workspace cleanup logic
-├── reviewers/
-│   ├── ocr.py             # OCR (OpenCodeReview) reviewer
-│   ├── claude.py          # Claude Code reviewer (MCP incremental reporting + multi-level fallback)
-│   └── codex.py           # Codex reviewer (MCP incremental reporting + JSONL fallback, isomorphic to Claude)
-├── mcp_finding_server.py        # Stdio MCP findings server for Claude
-├── mcp_codex_finding_server.py  # Codex-specific MCP server (different finding schema from Claude)
-├── judge.py               # Evaluation core: 4-stage matching + metrics + semantic judgment (LLM/Mock)
-├── evaluate.py            # Evaluation orchestration: align data → call judge → aggregate metrics
+├── pipeline.py                # Command entry; data loading, review, and evaluation
+├── config.py                  # Configuration variables, defaults, and paths
+├── schema.py                  # JSONL sample format and validation
+├── repo_utils.py              # Repository acquisition, caching, and commit checks
+├── evaluate.py                # Aggregate review results and save metrics
+├── judge.py                   # Judge calls and semantic matching
+├── reviewers/                 # Reviewer invocation and result collection
+│   ├── ocr.py                 # OpenCodeReview
+│   ├── claude.py              # Claude Code
+│   └── codex.py               # Codex
+├── mcp_finding_server.py       # Receive Claude Code review comments
+├── mcp_codex_finding_server.py # Receive Codex review comments
+├── hooks/
+│   └── on_stop_failure.py     # Record exhausted Claude Code retries
 ├── converters/
-│   └── aacr_bench.py      # AACR-Bench → standard format converter
-├── benchmark/<name>/      # Raw data for each benchmark (data described by *.meta.json, auto-downloaded on first run)
-├── data/<name>.jsonl      # Converted standard format datasets (named by benchmark)
-├── repo/                  # Repository clone cache (<owner__name>, auto-generated)
-├── results/<benchmark>/<reviewer>/<run_id>/   # Review results (isolated per run, no overwrites)
-└── metrics/<benchmark>/<reviewer>/<run_id>/   # Evaluation metrics (mirrors results structure)
+│   └── aacr_bench.py          # Convert raw data to JSONL
+├── benchmark/AACR-Bench/
+│   ├── v1/                   # v1 raw-data cache and download metadata
+│   └── v2/                   # v2 raw-data cache and download metadata
+├── data/                     # Converted JSONL data
+├── repo/                     # Default repository cache
+├── snapshots/                # Default repository archive cache
+├── results/                  # Review results grouped by dataset, reviewer, and run name
+├── metrics/                  # Metrics using the same grouping as review results
+├── .env.example              # Model configuration template
+└── requirements.txt          # Pinned Python dependencies
 ```
 
-> **Data directory convention**: Raw data goes under `benchmark/<benchmark name>/` (e.g., `benchmark/AACR-Bench/v1/` and `benchmark/AACR-Bench/v2/`).
-> Converters read from there and output standard data to `data/<benchmark_key>.jsonl` (e.g., `data/aacr_bench.jsonl`),
-> named by benchmark to avoid collisions.
+Data, cache, and result directories are created as needed; the tree shows their default locations.
 
----
+## Pipeline
+
+This directory contains the data converter and code review evaluation program. The converter writes JSONL (one JSON object per line), then `pipeline` performs these stages:
+
+| Stage | Work | Model calls |
+| --- | --- | --- |
+| Data loading | Read samples, commit ranges, and reference comments; validate the format | None |
+| Review | Generate comments with OpenCodeReview (OCR), Claude Code, or Codex | Review model; none during preview |
+| Judge evaluation | Match comments against references and compute metrics | Real judge model; none in local simulation mode |
+
+Before review, the program uses a local repository or cached archive when available; otherwise it downloads a Hugging Face repository snapshot, then clones the repository from GitHub if the snapshot is unavailable. The cache directory must not point to a repository used for development or a shared read-only directory.
+
+Default scoring matches generated comments against references in the same file and computes Precision, Recall, and Balanced Score. A generated comment counts toward the precision numerator only if it matches at least one previously unmatched reference. See [metric definitions](../docs/metrics.md) and the [project README](../README.md) for dataset background.
 
 ## Standard Data Format
 
-The dataset is **JSONL**, one sample per line (`ReviewInstance`):
+The dataset uses **JSONL**, with one sample (`ReviewInstance`) per line. The example below is from [browser-use/browser-use PR #1482](https://github.com/browser-use/browser-use/pull/1482) in v2 and is expanded for readability:
 
 ```json
 {
-  "instance_id": "psf__requests-5711@9484e13",
-  "repo": "psf/requests",
-  "base_commit": "5351469472eccee7ed1a6cae53341446c520d807",
-  "head_commit": "9484e13c7da927119fe82794bb5571cec144b6d7",
-  "clone_url": "https://github.com/psf/requests.git",
+  "instance_id": "browser-use__browser-use@0b21e50",
+  "repo": "browser-use/browser-use",
+  "base_commit": "fa461585f1fc2d4a430e68e6c115a12f4936fe73",
+  "head_commit": "0b21e50ca640581ecd46990475c8b223eaa05045",
+  "clone_url": "https://github.com/browser-use/browser-use.git",
   "reference_comments": [
     {
-      "path": "setup.py",
-      "start_line": 46,
-      "end_line": 46,
-      "side": "left",
-      "text": "Review comment body (human-annotated ground truth)"
+      "path": "browser_use/browser/browser.py",
+      "start_line": 290,
+      "end_line": 292,
+      "side": "right",
+      "text": "`self.config.chrome_remote_debugging_port` is typed as `int | None`. If it is `None`, `socket.connect_ex` will raise a `TypeError` because it expects an integer port. Suggest adding a check for `None` or ensuring it is a valid integer before using it here."
     }
   ]
 }
@@ -65,338 +76,206 @@ The dataset is **JSONL**, one sample per line (`ReviewInstance`):
 Field reference:
 
 | Field | Required | Description |
-| ---- | -------- | ----------- |
-| `instance_id` | Yes | Unique sample identifier; result file is `instance_id.replace("/", "__") + .json` |
-| `repo` | Yes | `owner/name` format |
-| `base_commit` | Yes | Starting commit of the review diff |
-| `head_commit` | Yes | Ending commit of the review diff (the code state being reviewed) |
-| `clone_url` | No | Falls back to derived GitHub URL from `repo` if omitted |
-| `reference_comments[]` | No | Human-annotated reference comments; empty means no ground truth for this sample |
-| `reference_comments[].path` | Yes | File path of the comment |
-| `reference_comments[].start_line` / `end_line` | No | Closed line interval `[start, end]`; single-line: set both equal; may be `null` |
-| `reference_comments[].side` | No | `"left"` or `"right"` — which side of the diff the comment is on; may be `null` |
-| `reference_comments[].text` | Yes | Comment body |
+| --- | --- | --- |
+| `instance_id` | Yes | Unique, non-empty sample identifier; result filename is `instance_id.replace("/", "__") + ".json"` |
+| `repo` | Yes | Repository name in `owner/name` form |
+| `base_commit` | Yes | Base commit used to determine the review range |
+| `head_commit` | Yes | Target commit containing the code being reviewed |
+| `clone_url` | No | Clone URL; derived from `repo` as a GitHub URL if omitted |
+| `reference_comments[]` | No | Annotated reference comments; defaults to an empty list |
+| `reference_comments[].path` | Yes | Non-empty path of the referenced file |
+| `reference_comments[].start_line` / `end_line` | No | Inclusive line range; positive integers or `null`; equal for a single line |
+| `reference_comments[].side` | No | `left` or `right` for the old or new diff side; may be `null` |
+| `reference_comments[].text` | Yes | Non-empty reference comment text |
 
-> **Line convention**: Reference comments use closed intervals. During evaluation, Claude's single `line` is
-> treated as start = end; OCR and Codex `start_line/end_line` are used directly. Matching checks overlap
-> or distance ≤ k against the reference interval.
+One supplied line endpoint fills the other; reversed endpoints are reordered. Default file-level scoring does not filter by line or `side`; only line information is passed to the judge as context. Legacy per-comment scoring filters by `side`, line range, and distance.
 
-Loading (`schema.load_instances`) performs **per-line validation**: required fields must be non-empty,
-line numbers must be positive integers or null, and `instance_id` must be unique. Any invalid line raises
-a `SchemaError` with line location, surfacing bad data as early as possible.
+Loading checks required fields, line values, and duplicate `instance_id` values. Errors identify the JSONL line. With `--limit`, only loaded samples are checked. See [schema.py](schema.py) for the definitions.
 
----
+## Configuration
+
+### Models and Network
+
+`pipeline` reads this directory's `.env` at startup; matching variables passed from the terminal take precedence. Configure the selected reviewer and judge:
+
+| Purpose | Variables |
+| --- | --- |
+| OCR review | `OCR_LLM_URL`, `OCR_LLM_TOKEN`, `OCR_LLM_MODEL` |
+| Claude Code review | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL` |
+| Codex review | `CODEX_API_KEY`; select a model with `CODEX_MODEL` |
+| Judge evaluation | `JUDGE_BASE_URL`, `JUDGE_API_KEY`, `JUDGE_MODEL` |
+
+| Optional variable | Meaning |
+| --- | --- |
+| `OCR_USE_ANTHROPIC` | `true` uses Anthropic protocol; `false` uses OpenAI protocol |
+| `CLAUDE_CODE_MAX_RETRIES` | Claude Code retries; default 10 |
+| `CODEX_GATEWAY_URL` | Codex-compatible model gateway |
+| `CODEX_HOME_BASE`, `CODEX_HOME_BACKUP` | Parent directory for temporary Codex configuration, and where to save it after review |
+| `JUDGE_USE_MOCK` | Use local similarity when `true` |
+| `JUDGE_CONCURRENCY` | Concurrent file-level judge requests; default 3 |
+| `HF_ENDPOINT` | Hugging Face service or mirror |
+| `NETWORK_TIMEOUT_SECONDS` | Timeout for connection checks and supported download requests; default 60 seconds, excluding judge requests and total run time |
+
+If `CODEX_MODEL` is omitted, Codex uses its default model. Without `CODEX_HOME_BACKUP`, the generated directory is cleaned up after review. Missing `JUDGE_API_KEY` or enabled `JUDGE_USE_MOCK` selects local simulation, intended only for workflow checks. Evaluation logs identify the active judge mode.
+
+### Run Parameters
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--reviewer` | Required | `ocr`, `claude`, or `codex` |
+| `--dataset` | Required | Converted JSONL file |
+| `--stage` | `all` | `all`: review and evaluation; `review`: review only; `eval`: evaluation only |
+| `--run-id` | Generated for review | Run name; evaluation-only commands using default output directories need an existing run name |
+| `--limit` | All | First N JSONL samples; use a positive integer |
+| `--concurrency` | `1` | Concurrent repository groups; serial within each repository |
+| `--timeout-minutes` | `30` | Review timeout per sample, in minutes |
+| `--eval-rounds` | `1` | Judge-evaluation rounds; use a positive integer |
+| `--repo-dir` | `repo/` | Repository cache managed by the program |
+| `--results-dir` | Automatic | Write review results and metrics directly to the given directory instead of a named run directory |
+| `--ocr-command` | `ocr` | OCR command on PATH or absolute binary path |
+| `--max-tools` | `30` | Per-file tool limit passed to OCR; accepted range is determined by OCR |
+| `--preview` | Off | Check repositories and diffs without review-model calls; use with `--stage review` |
+| `--use-deprecated-score` | Off | Legacy per-comment semantic and line scoring |
+| `--line-k` | `1` | Line tolerance for legacy scoring only |
+
+The review-process timeout is the value of `--timeout-minutes` plus five minutes for OpenCodeReview or one minute for Claude Code/Codex. Network and review timeouts are separate; `--timeout-minutes` does not control judge requests.
+
+### Conversion Parameters
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--version` | `v1` | Select `v1` or `v2` positive data |
+| `--input` | Version-specific path | Raw JSON file |
+| `--output` | Version-specific path | JSONL destination |
+| `--limit` | All | Shuffle the raw data, then select the first N records |
+| `--seed` | Random each time | Fix sample order |
+| `--validate` | Off | Check the converted data format, not annotation correctness |
+
+v1 outputs `data/aacr_bench.jsonl`; v2 outputs `data/aacr_bench_v2.jsonl`. Raw data can be downloaded and verified from its metadata file on first use. Custom AACR-Bench output names should retain `v1` or `v2` so connection checks can identify the version.
 
 ## Quick Start
 
-### 0. Prepare Environment
+This example uses the **v2 dataset and OpenCodeReview**. Obtain this repository's source, then start in the `aacr-bench` directory.
 
-This framework ships with its own [uv](https://docs.astral.sh/uv/) virtual environment (`evaluation/.venv`),
-with dependencies locked in `evaluation/requirements.txt` — ready to use, isolated from the rest of the project.
+Python 3.11 or newer is supported; the example uses Python 3.12. Install [uv](https://docs.astral.sh/uv/) and Git. OpenCodeReview requires Git 2.41 or newer. Installing reviewer packages through npm also requires Node.js and npm.
 
-> **Prerequisites** (install once before first use):
->
-> - [uv](https://docs.astral.sh/uv/): Python environment and dependency management
-> - Benchmark raw data needs no Git LFS: each benchmark ships a committed `*.meta.json`
->   (url + sha256); converters **auto-download** and verify the data on first run, caching
->   under `benchmark/<name>/` for reuse.
-> - Node.js / npm: Required to install reviewer CLIs.
+### 1. Install
 
 ```bash
-# 0) Enter the framework directory (all subsequent commands run inside evaluation/)
 cd evaluation
-
-# 1) Create framework-specific virtual environment and install locked dependencies
-uv venv .venv --python 3.11
+uv venv .venv --python 3.12
 uv pip install -r requirements.txt
-
-# 2) Activate the virtual environment (then use python directly)
 source .venv/bin/activate
-
-# 3) Install reviewer CLIs (as needed, global install)
-npm install -g @alibaba-group/open-code-review   # ocr reviewer
-npm install -g @anthropic-ai/claude-code         # claude reviewer
-npm install -g @openai/codex                    # codex reviewer
-
-# 4) Configure LLM: copy the template and fill in real tokens
-#    (.env is .gitignore'd, won't be accidentally committed)
-cp .env.example .env
-# Edit .env to fill in OCR / Claude / Codex / Judge configs, then load into current shell:
-set -a && source .env && set +a
+npm install -g @alibaba-group/open-code-review
 ```
 
-> **Runtime convention**: All commands run inside `evaluation/` with venv activated:
-> `python -m pipeline run ...` (review/eval), `python -m converters.<benchmark> ...` (conversion).
-> Claude / Codex MCP server subprocesses reuse the same interpreter via `sys.executable` — no extra config needed.
+The example installs OpenCodeReview. Other reviewers can be installed with:
 
-The four config groups in `evaluation/.env` each serve a distinct purpose:
+| Reviewer | Install command |
+| --- | --- |
+| Claude Code | `npm install -g @anthropic-ai/claude-code` |
+| Codex | `npm install -g @openai/codex` |
+
+Run all subsequent commands inside `evaluation/` with the virtual environment active.
+
+### 2. Configure Models
+
+```bash
+if [ ! -e .env ] && [ ! -L .env ]; then
+  cp -n .env.example .env
+fi
+chmod 600 .env
+```
+
+The copy preserves an existing `.env`. Edit that file using [.env.example](.env.example) to configure the review model and judge:
 
 | Purpose | Variables |
-| ------- | --------- |
-| OCR Review | `OCR_LLM_URL` / `OCR_LLM_TOKEN` / `OCR_LLM_MODEL` / `OCR_USE_ANTHROPIC` |
-| Claude Review | `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL` |
-| Codex Review | `CODEX_API_KEY` (required) / `CODEX_MODEL` (optional) / `CODEX_GATEWAY_URL` (optional) |
-| Judge (Evaluation) | `JUDGE_BASE_URL` / `JUDGE_API_KEY` / `JUDGE_MODEL` / `JUDGE_USE_MOCK` / `JUDGE_CONCURRENCY` |
+| --- | --- |
+| OpenCodeReview review | `OCR_LLM_URL`, `OCR_LLM_TOKEN`, `OCR_LLM_MODEL`; optional `OCR_USE_ANTHROPIC` |
+| Judge evaluation | `JUDGE_BASE_URL`, `JUDGE_API_KEY`, `JUDGE_MODEL` |
 
-> **Codex config written to temporary config.toml**: The pipeline writes `CODEX_MODEL` (and
-> `CODEX_GATEWAY_URL`, if provided) into `/tmp/codex_home.XXXXXX/config.toml` at the start of the
-> review stage, then redirects Codex via `CODEX_HOME=<tmp>` to isolate it from the user's
-> `~/.codex/config.toml`, ensuring reproducibility. When `CODEX_GATEWAY_URL` is set, the pipeline
-> automatically generates a `model_provider = "gateway"` + `[model_providers."gateway"]` section,
-> redirecting Codex to the custom endpoint (e.g. MaaS / cc_switch) instead of `api.openai.com`.
-> The MCP server inherits `REVIEW_RESULTS_DIR` / `REVIEW_INSTANCE_ID` from the parent process via `env_vars`.
+The program loads `.env` automatically; matching variables passed from the terminal take precedence. Missing `JUDGE_API_KEY` or `JUDGE_USE_MOCK=true` selects local similarity for workflow checks. Configure a real judge to compare model performance.
 
-> **Note**: The model must be compatible with Codex's tool calling — models that cannot call MCP tools will fail to report findings.
-
-> When Judge lacks `JUDGE_API_KEY` or has `JUDGE_USE_MOCK=true`, semantic matching automatically falls
-> back to local mock similarity (zero cost, for pipeline validation only; use a real judge model for
-> production evaluation).
-
-### 1. Convert a Benchmark to Standard Format
-
-> All commands below run inside `evaluation/` (with venv activated).
-
-Place raw data under the conventional location `benchmark/<benchmark name>/`, and the corresponding
-converter will read it by default, producing `data/<benchmark_key>.jsonl`. AACR-Bench converter is
-built-in:
+### 3. Convert and Preview
 
 ```bash
-# AACR-Bench v1 (raw data benchmark/AACR-Bench/v1/ -> data/aacr_bench.jsonl)
-python -m converters.aacr_bench --validate
+python -m converters.aacr_bench --version v2 --seed 42 --validate
 
-# --validate: re-load with schema after conversion to verify output validity
-# --limit N: shuffle all records then take the first N (random sampling; omit for full dataset)
-# --seed N: random seed for shuffling; makes the sample reproducible (for fixed evaluation subsets)
-# You can also explicitly specify input / output:
-python -m converters.aacr_bench \
-    --input benchmark/AACR-Bench/v1/positive_samples.json \
-    --output data/aacr_bench.jsonl \
-    --limit 30 --seed 42 --validate
-```
-
-> **Sampling randomness**: The converter shuffles raw data before applying `--limit`, so `--limit`
-> produces a **random subset** rather than a fixed prefix. Use `--seed` for reproducible subsets.
-
-**Converter parameters** (`python -m converters.<key> [options]`):
-
-| Parameter | Default | Description |
-| --------- | ------- | ----------- |
-| `--input` | Conventional path | Raw data file path (default `benchmark/<benchmark name>/<raw file>`) |
-| `--output` | Conventional path | Output standard JSONL path (default `data/<key>.jsonl`) |
-| `--limit` | All | Shuffle then take first N (random sampling; omit for full dataset) |
-| `--seed` | Random each time | Random seed for shuffling; makes the sample reproducible |
-| `--validate` | Off | Re-load with schema after conversion to verify output validity |
-
-### 2. One-Click Run (Review + Evaluation)
-
-```bash
-set -a && source .env && set +a
-
-# OCR reviewer, first 5 samples
-python -m pipeline run --stage all --reviewer ocr --dataset data/aacr_bench.jsonl --limit 5 --concurrency 1 --run-id baseline
-
-# Claude reviewer, first 2 samples, review then evaluate
-python -m pipeline run --stage all --reviewer claude --dataset data/aacr_bench.jsonl --limit 2 --concurrency 1 --run-id baseline
-
-# Codex reviewer, first 2 samples
-python -m pipeline run --stage all --reviewer codex --dataset data/aacr_bench.jsonl --limit 2 --concurrency 1 --run-id baseline
-```
-
----
-
-## CLI Reference
-
-> Run inside `evaluation/` (with venv activated).
-
-```
-python -m pipeline run --reviewer {ocr|claude|codex} --dataset <standard JSONL> [options]
-```
-
-| Parameter | Default | Description |
-| --------- | ------- | ----------- |
-| `--reviewer` | (required) | Reviewer: `ocr` / `claude` / `codex` |
-| `--dataset` | (required) | Standard format dataset path, e.g. `data/aacr_bench.jsonl` |
-| `--stage` | `all` | `all` (review + eval) / `review` (review only) / `eval` (eval only) |
-| `--repo-dir` | `repo/` | Repository clone directory (cached for reuse) |
-| `--results-dir` | `results/<benchmark>/<reviewer>/<run_id>` | Directly specify results directory (advanced, bypasses run mechanism); auto-derived from dataset otherwise |
-| `--run-id` | Timestamp | Directory name for this run (e.g. `baseline`, `v2`); auto-generated timestamp if omitted for review; **must be explicitly specified for eval** |
-| `--limit` | All | Only process the first N samples of the dataset (randomness is determined at conversion stage, see converter `--seed` above) |
-| `--line-k` | `1` | Evaluation line matching tolerance (overlap or distance ≤ k counts as a hit); only effective in deprecated scoring mode |
-| `--timeout-minutes` | `30` | Per-sample review timeout |
-| `--eval-rounds` | `1` | Number of evaluation rounds; multi-round runs N independent evaluations then averages the metrics |
-| `--use-deprecated-score` | off | Use the deprecated legacy metrics (per-comment line/semantic P/R/F1); default is the file-level semantic metrics (precision / recall / balanced score) |
-| `--ocr-command` | `ocr` | OCR reviewer executable path; can specify a local release binary (e.g. `./ocr-v2.0.0`), for ocr reviewer only |
-| `--max-tools` | `30` | OCR max tool call rounds per file (controls per-file review depth), for ocr reviewer only |
-| `--concurrency` | `1` | Number of concurrent repo groups during review (`1` = fully serial); see "Concurrent Review" below |
-| `--preview` | Off | Clone/checkout only, do not actually invoke the review LLM |
-
-### Concurrent Review (`--concurrency`)
-
-Each sample's review involves `checkout` / `clean` on its repository. Samples sharing the same repo
-use the same local workspace (`repo/<owner__name>`), so concurrency would cause conflicts. The
-concurrency model groups by `repo`:
-
-- **Inter-group concurrency**: Samples from different repos can be reviewed in parallel, up to `--concurrency` repo groups
-- **Intra-group serial**: Samples from the same repo are strictly sequential, no interference
-- `--concurrency 1` (default) = fully serial, same as pre-concurrency behavior
-
-This only applies to the review stage; evaluation is purely local computation + LLM judgment and is unaffected.
-
-```bash
-# 4 repo groups reviewed in parallel (samples within the same repo remain serial)
 python -m pipeline run --stage review --reviewer ocr \
-    --dataset data/aacr_bench.jsonl --concurrency 4
+  --dataset data/aacr_bench_v2.jsonl \
+  --limit 2 --preview --run-id v2-preview
 ```
 
-> Actual concurrency is clamped to `min(--concurrency, number of repo groups)`.
+Conversion randomly orders the samples; using the same random seed, such as `--seed 42`, with the same input produces the same sample order. `--limit 2` processes only the first two samples in the converted JSONL file (one JSON object per line). Conversion overwrites its output; you should use a new `--output` path when changing the input or sampling options, and preserve the original data file and order for saved runs. Preview checks the required commits and diff without calling the review model; `--stage review` prevents judge evaluation at this step.
 
-### Staged Runs + Multi-Eval Comparison (Run Mechanism)
-
-Each review automatically creates an isolated run directory `results/<benchmark>/<reviewer>/<run_id>/`.
-Both review results and evaluation metrics live under this directory, so **multiple runs never overwrite
-each other**, making cross-run comparison easy.
+### 4. Review and Evaluate
 
 ```bash
-# Review only (auto-creates a timestamped run directory)
-python -m pipeline run --stage review --reviewer claude --dataset data/aacr_bench.jsonl --limit 5
-
-# Give the run a meaningful name (the run directory will be called "baseline")
-python -m pipeline run --stage review --reviewer claude --dataset data/aacr_bench.jsonl --run-id baseline
-
-# Run again with different parameters, no overwrites
-python -m pipeline run --stage review --reviewer claude --dataset data/aacr_bench.jsonl --run-id run2
-
-# Evaluate only (--run-id is required)
-python -m pipeline run --stage eval --reviewer claude --dataset data/aacr_bench.jsonl --run-id baseline
-
-# Multi-round evaluation averaging (reduces single-run variance)
-python -m pipeline run --stage eval --reviewer claude --dataset data/aacr_bench.jsonl --run-id baseline --eval-rounds 3
+python -m pipeline run --reviewer ocr \
+  --dataset data/aacr_bench_v2.jsonl \
+  --limit 2 --run-id v2-baseline
 ```
 
----
+The review stage calls the review model to generate comments. Judge evaluation calls the judge model for semantic matching in real-judge mode, or calculates local similarity in simulation mode. The program then computes metrics. Both stages process the same first two samples.
 
-## How the Three Stages Work
+Review results are saved to `results/aacr_bench_v2/ocr/v2-baseline/`, and metrics to `metrics/aacr_bench_v2/ocr/v2-baseline/`. Use a different run name for a new review to preserve earlier results.
 
-### Data Loading (schema.py)
+For v1, select `--version v1` and use `data/aacr_bench.jsonl`. After configuring the corresponding agent and model, select `--reviewer claude` or `--reviewer codex` to use another reviewer.
 
-Read standard JSONL → per-line validation → produce `ReviewInstance` list. `--limit N` takes the
-first N samples in **original data order**.
 
-### Review Execution (reviewers/)
+## Common Operations
 
-For each sample: `clone/fetch` → `checkout head_commit` → invoke reviewer → write `<safe_id>.json`.
-Review progress includes a **progress bar** (completed / total + real-time rate + ETA), useful for
-estimating total runtime. Multi-repo concurrent progress is thread-safe (see "Concurrent Review" above).
+### Staged Runs
 
-**Workspace cleanup (unified across all three reviewers)**: `git reset --hard && git clean -fdx` runs
-**before and after** each review (pre-review cleanup is built into `checkout_commit`; post-review cleanup
-is done by each reviewer's `clean_worktree` after saving results). This prevents temporary files or
-changes left by reviewers from polluting the next checkout.
+Review first, then evaluate saved results:
 
-- **OCR**: `ocr review --from base --to head --format json`, results in `review.comments[]`.
-- **Claude**: Official `/code-review <base>...<head>`, structured output via two channels:
-  1. **MCP incremental reporting**: Claude calls the `report` tool once per confirmed finding, writing
-     to `<safe_id>.partial.json`, decoupled from the final text format;
-  2. **stdout parsing fallback**: Handles both single JSON envelopes and stream-json output (models may
-     return stream-json even when asked for JSON), extracts final text and parses findings; unparseable
-     output is treated as empty review or preserved as raw text.
-     The channel with **more findings** wins (MCP preferred on ties). `review_output_source` is marked
-     as `mcp_stream` or `stdout_fallback`.
-- **Codex**: `codex exec "/review <base>...<head>"`, fully isomorphic dual-channel strategy with Claude:
-  1. **MCP incremental reporting** (primary): Codex-specific MCP server (`mcp_codex_finding_server.py`)
-     exposes `report(file, summary, description, start_line, end_line, severity)`, with finding fields
-     `{file, start_line, end_line, severity, summary, description}` (different schema from Claude).
-  2. **JSONL fallback** (secondary): `--json` output produces a stream of JSONL events; parses
-     `item.completed`'s `agent_message` text as fallback, and extracts token usage from
-     `turn.completed.usage`.
-     The channel with **more findings** wins (MCP preferred on ties). `review_output_source` is marked
-     as `mcp_stream` or `jsonl_fallback`. Model config and MCP settings are written into a temporary
-     `$CODEX_HOME/config.toml` (Plan D), loaded via `CODEX_HOME=<tmp>` redirection.
+```bash
+python -m pipeline run --stage review --reviewer ocr \
+  --dataset data/aacr_bench_v2.jsonl --limit 2 --run-id v2-review
 
-### Evaluation (evaluate.py + judge.py)
+python -m pipeline run --stage eval --reviewer ocr \
+  --dataset data/aacr_bench_v2.jsonl --limit 2 --run-id v2-review
+```
 
-Locates result files by `instance_id` (`<safe_id>.json`), then runs local `judge.py` for
-**file-level semantic matching**: comments are grouped by file, and each generated comment is
-judged against all reference comments of the same file in a single judge call (one-to-many
-coverage supported).
+Use the same data file and order, reviewer, sample limit, and run name in both commands. Use a new name for a new review experiment; using the same name again can overwrite existing results. Use a name that begins and ends with a letter or digit, with periods, underscores, or hyphens inside, such as `v2-review`. For evaluation, use the directory name shown in the review log.
 
-- Samples with missing result files are counted in `missing_instances` and **excluded from metric
-  denominators** (avoiding treating un-run samples as 0 recall).
-- Default metrics: **precision** (`file_semantic_match_rate` = generated comments that hit a
-  previously uncovered GT / total generated comments; duplicate hits on already-covered GTs are
-  not counted), **recall** (`file_semantic_recall_rate` = GTs covered / total GTs, deduplicated
-  under one-to-many matching) and **balanced score** (`balanced_score`, their harmonic mean).
-- `eval_res[].generated_comments[]` in the metrics JSON records, for each generated comment, which
-  GTs it hit (`matched_gt_indices` indexes into the sibling `comments` array), the judge's
-  rationale (`judge_reason`), and whether it covered a previously uncovered GT (`hit_new_gt`;
-  false means a duplicate hit, excluded from precision).
-- The legacy metric system (per-comment four-stage matching path → side → line(k) → semantic, with
-  semantic/line Precision / Recall / F1) is deprecated and only used with `--use-deprecated-score`.
+### Concurrency and Repeated Evaluation
 
-`note` (semantic comparison text) mapping: reference uses `text`, OCR uses `content`, Claude uses
-`summary + failure_scenario`, Codex uses `summary + description` (semantically expanded to failure
-scenario + suggested fix). Codex's `severity` field is archived only, not used in evaluation.
+Add `--concurrency 4` to a review command; actual parallelism is limited by selected repository count. Judge concurrency is controlled separately by `JUDGE_CONCURRENCY`.
 
----
+To evaluate saved results again:
 
-## Adding a New Benchmark (4 Steps)
+```bash
+python -m pipeline run --stage eval --reviewer ocr \
+  --dataset data/aacr_bench_v2.jsonl \
+  --limit 2 --run-id v2-review --eval-rounds 1
+```
 
-**Just write a converter — zero changes to the rest of the framework.** The `benchmark_key` convention
-uses lowercase underscores (e.g. `aacr_bench`), which determines the output filename `data/<key>.jsonl`,
-results directory `results/<key>/`, and metrics directory `metrics/<key>/`.
+Each command uses the saved review results. Preserve the previous metrics file before comparing evaluations.
 
-Use the built-in `converters/aacr_bench.py` as a reference example:
+### Inspect Results
 
-1. **Provide raw data**: Commit a same-named `*.meta.json` (fields: `url`, `sha256`, optional
-   `filename`, `description`) under `benchmark/<benchmark name>/` (e.g., `benchmark/AACR-Bench/v1/`).
-   The converter reads it to **auto-download** and verify the data on first run (see
-   `aacr_bench.py`'s `ensure_raw_file`); the data file itself is gitignored, never committed.
-   `filename` (defaults to the meta's stem) lets the data file be named differently from the meta.
-2. **Write a converter**: Copy `converters/aacr_bench.py` and adapt it. The core is `convert_record()`
-   which transforms each raw record into a `ReviewInstance`. Reuse the path conventions:
-   - Default input: `config.benchmark_raw_dir("<benchmark name>") / <raw filename>`
-   - Default output: `config.dataset_path("<key>")` (i.e. `data/<key>.jsonl`)
+`<dataset>` in default output paths is the JSONL filename without its extension:
 
-   Run conversion: `python -m converters.<key> --validate`
+| Location | Contents |
+| --- | --- |
+| `results/<dataset>/<reviewer>/<run-name>/` | Review results for each sample and `summary_<reviewer>.json` |
+| `metrics/<dataset>/<reviewer>/<run-name>/` | Metric summary and matches for each sample |
 
-3. **Run the pipeline**:
-   `python -m pipeline run --stage all --reviewer <ocr|claude|codex> --dataset data/<key>.jsonl`
-4. **Check metrics**: Results are in `metrics/<key>/<reviewer>/<run_id>/metrics_<reviewer>_<timestamp>.json`;
-   the console also prints a summary.
+Check the sample count and statuses in the review summary before interpreting metrics; exit code 0 does not establish that all samples succeeded. Missing or unreadable files, malformed JSON, and non-object results count toward `missing_instances` and are excluded from denominators; empty comments in a parsed object are still evaluated. Saved failures or unstructured responses may also be treated as zero comments; inspect their status and result fields. Judge errors can produce empty matches, so check the logged mode and errors. Model usage and duration summaries cover the review stage only.
 
-> **Built-in converter reference**: AACR-Bench reads a **whole JSON array**, parses `owner/name` from
-> `githubPrUrl` via regex, and generates `instance_id` as `owner__name@<head first 7 chars>`.
-> New benchmarks should follow their own format in the same pattern.
-
----
-
-## Output Files
-
-> `<benchmark>` in paths is derived from the `--dataset` filename (e.g. `data/aacr_bench.jsonl` → `aacr_bench`);
-> `<run_id>` is the directory name for this run, defaulting to a timestamp, or the name given via `--run-id`.
-> Review results go under `results/`, evaluation metrics under `metrics/` — mirrored structure (same run_id),
-> stored separately but clearly correlated.
-
-| File | Content |
-| ---- | ------- |
-| `results/<benchmark>/<reviewer>/<run_id>/<safe_id>.json` | Review result for a single sample |
-| `results/<benchmark>/<reviewer>/<run_id>/summary_<reviewer>.json` | Status summary for each sample in the review stage |
-| `metrics/<benchmark>/<reviewer>/<run_id>/metrics_<reviewer>_<timestamp>.json` | Evaluation metrics (including summary, per-sample match flags, and `missing_instance_ids`) |
-
----
+Use `python -m pipeline run --help` and `python -m converters.aacr_bench --help` for command-line usage.
 
 ## FAQ
 
-**Q: Many samples are skipped entirely (large `missing_instances`)?**
-This means those samples don't have a corresponding `<safe_id>.json` in the results directory — the review
-stage hasn't run them yet. This is different from "model produced no findings" — in that case, a result file
-would exist but with an empty `review_output`, and would still enter evaluation and pull down recall.
+### Why is `missing_instances` large?
 
-**Q: Semantic metrics are all zero during evaluation?**
-Judge is likely running in Mock mode (local similarity struggles with significant wording differences).
-Configure `JUDGE_API_KEY` in `evaluation/.env` and set `JUDGE_USE_MOCK=false`, then re-run to use a real
-judge model (the evaluation stage reads this file automatically).
+It counts samples whose result could not be loaded: a missing or unreadable file, malformed JSON, or a non-object result. Check the run name, data file, `--limit`, and review summary. Saved results without parsable comments still enter evaluation, so the missing count alone does not establish review success.
 
-**Q: Where are repos cloned? Will they be cloned repeatedly?**
-Repos are cloned to `evaluation/repo/<owner__name>`. The same repo is cached and reused — only `fetch` is
-run, never a repeated clone.
+### Why are semantic scores all zero?
+
+Check the logged judge mode and the `JUDGE_API_KEY`, `JUDGE_MODEL`, and service endpoint settings. For a real judge, also check model-call errors and whether structured review comments were saved. A written metrics file does not establish that every judge call succeeded; local simulation scores are not for comparing model quality.
+
+### Where are repositories cloned? Will they be cloned again?
+
+The default cache is `repo/<owner__repo>/`, configurable with `--repo-dir`. Usable caches are reused. An unusable cache or missing required commit can cause another snapshot download or clone.

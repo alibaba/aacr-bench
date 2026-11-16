@@ -1,201 +1,160 @@
 [//]: # (# AACR-Bench: 多语言、仓库级上下文感知的自动化代码评审评测数据集)
 ![AACR-Bench](imgs/bg.png)
 
-
 <div align="center">
 
+<h1>AACR-Bench</h1>
+<p>结合仓库上下文的多语言代码评审评测基准。</p>
+
+[![Paper](https://img.shields.io/badge/arXiv-2601.19494-b31b1b.svg)](https://arxiv.org/abs/2601.19494)
+[![Dataset](https://img.shields.io/badge/Hugging_Face-Dataset-yellow.svg)](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![arXiv](https://img.shields.io/badge/arXiv-Paper-b31b1b.svg)](https://arxiv.org/abs/2601.19494)
-[![HuggingFace](https://img.shields.io/badge/HuggingFace-Data-yellow)](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench)
-![](https://img.shields.io/badge/Dataset-v1.0-green.svg)
-![](https://img.shields.io/badge/Languages-10-orange.svg)
-![](https://img.shields.io/badge/PRs-200-red.svg)
+![Versions](https://img.shields.io/badge/Dataset-v1%20%2F%20v2-green.svg)
+![Languages](https://img.shields.io/badge/Languages-10-orange.svg)
 
 [English](README.md) | 简体中文
 
 </div>
 
-## 📋 简介
-AACR-Bench 是**业界首个多语言、仓库级上下文感知的代码评审评测数据集**，可用于评估大语言模型在自动代码评审任务中的表现。数据集包含来自50个活跃开源项目的200个真实Pull Request，覆盖10种主流编程语言，每个实例不仅包含代码变更，还保留了完整的仓库上下文，真实还原了代码评审的全过程。通过人类与LLM协同评审 + 人类专家多轮标注，确保了数据的高质量和全面性。
+## 数据集
 
-![AACR-Bench Overview](imgs/aacr-overview.jpg)
+AACR-Bench 是一个面向多种编程语言的自动代码评审评测基准，用于评估大语言模型结合仓库上下文发现代码问题的能力。原始数据覆盖 **50 个开源项目、200 个唯一 Pull Request（PR）和 10 种编程语言**。参考评审意见来自原始评审讨论和模型生成的意见，并经过专家标注。
 
-## ✨ 核心特性
-### 🌍 **多语言覆盖**
-覆盖 **10种** 主流项目使用的编程语言：
-- **系统级语言**：C++, Rust, Go
-- **企业级语言**：Java, C#, TypeScript
-- **脚本语言**：Python, JavaScript, Ruby, PHP
+数据集覆盖 **C、C++、C#、Go、Java、JavaScript、PHP、Python、Rust 和 TypeScript**。评审意见分为代码缺陷、可维护性与可读性、性能、安全漏洞四类问题，并标注所需上下文是代码变更、文件还是仓库。
 
-### 📁 **仓库级上下文**
--  保留完整项目结构
--  支持跨文件引用和模块间交互分析
--  包含PR元数据（描述、标题、评论等）
+目前提供两个版本：
 
-### 🤖 **人类专家 + LLM增强标注**
-#### **专业标注团队**
-- **80+**位拥有**2年以上**经验的资深软件工程师
-- 覆盖**前端**、**后端**、**架构**等领域
-- **三轮**标注交叉验证
+- **v1**：原始基准版本，包含正例和负例数据。
+- **v2**：v1 正例数据的子集，保留其中的高价值评审意见及对应的 PR。
 
-#### **LLM 智能增强**
-- **系统性**问题发现
-- **全面**缺陷识别
-- **改进**建议生成
+下表统计供评测使用的正例参考数据：
 
-**质量保证流程**：Github人类评论 → LLM增强 → 专家多轮交叉标注 → 一致性检验
+| 版本 | PR 数 | 参考评论数 | 仓库数 |
+| --- | ---: | ---: | ---: |
+| [v1（positive）](dataset/v1/positive_samples.json) | 196 | 1,506 | 50 |
+| [v2](dataset/v2/positive_samples.json) | 151 | 944 | 42 |
 
-## 🎯 评测能力与应用
+`evaluation/` 目录下的评审意见生成和评测流水线使用上述正例数据。v1 另提供[负例数据集](dataset/v1/negative_samples.json)，包含 155 个 PR、639 条评论，正负文件合计覆盖 200 个唯一 PR。
 
-AACR-Bench 提供**四大维度**的系统化评测能力，支撑多样化的研究与应用场景：
+![AACR-Bench 概览](imgs/aacr-overview.jpg)
 
-###  评测维度体系
+## 快速开始
 
-| 1️⃣ **多语言评测** (10种编程语言)                                                               | 2️⃣ **定位精度评测** (行级别)                                                                |
-|:--------------------------------------------------------------------------------------|:------------------------------------------------------------------------------------|
-| • **跨语言性能对比**：识别模型在不同语言上的强弱项<br>• **语言特定优化**：针对特定语言改进模型能力<br>• **泛化能力评估**：测试模型的语言迁移效果 | • **精确定位能力**：评估单行/多行问题定位准确性<br>• **跨文件追踪**：测试跨文件引用的识别能力<br>• **上下文边界**：验证问题范围判断的准确性 |
-| **3️⃣ 问题分类评测 (4大类别)**                                                                 | **4️⃣ 上下文理解评测 (3层级)**                                                               |
-| • **分类准确性**：评估问题类型识别能力<br>• **严重度评估**：测试问题优先级判断<br>• **专项能力**：分析特定类型问题的发现率            | • **Diff级理解**：基础代码变更分析<br>• **File级理解**：文件完整逻辑把握<br>• **Repo级理解**：项目全局依赖分析          |
+以下示例使用 **v2 数据集和 OpenCodeReview**。获取本仓库源码后，从 `aacr-bench` 目录开始执行。
 
-###  典型应用场景
+模型配置、并发评审、只运行评审、评测已有结果及仓库准备的说明，见[评测指南](evaluation/README.zh-CN.md)。
 
-####  **模型研发**
-- **性能基准测试**：使用统一标准评估新模型的代码评审能力
-- **弱点分析定位**：通过细粒度指标发现模型短板（如：某语言召回率低）
-- **迭代优化验证**：量化改进效果，指导模型持续优化
+需要 Python 3.11 及以上，示例使用 Python 3.12。安装 [uv](https://docs.astral.sh/uv/) 和 Git；OpenCodeReview 需要 Git 2.41 及以上。通过 npm 安装评审器时，还需要 Node.js 和 npm。
 
-####  **学术研究**
-- **对比研究**：公平比较不同模型架构/训练方法的效果
-- **消融实验**：分析不同上下文级别对评审质量的影响
-- **新方法验证**：为创新算法提供标准化评测环境
-
-####  **工程实践**
-- **模型选型**：帮助团队选择适合项目特点的评审模型
-- **部署前验证**：确保模型在生产环境的可靠性
-- **持续监控**：跟踪模型在实际使用中的性能变化
-
-## 🚀 快速开始
+### 1. 安装
 
 ```bash
-git clone https://github.com/alibaba/aacr-bench.git
-cd aacr-bench
+cd evaluation
+uv venv .venv --python 3.12
+uv pip install -r requirements.txt
+source .venv/bin/activate
+npm install -g @alibaba-group/open-code-review
 ```
 
-评测框架位于 [`evaluation/`](evaluation/) 目录，提供统一流水线：**数据加载 → 执行评审 → 执行评测**。支持三个评审系统：**OpenCodeReview (OCR)**、**Claude Code**、**Codex**。详细配置与用法见 [`evaluation/README.zh-CN.md`](evaluation/README.zh-CN.md)。
-## 📈 数据概览
-### 数据集规模
-<div>
-<table>
-<tr>
-<td align="center" width="25%">
-<h3>200</h3>
-<b>Pull Requests</b>
-</td>
-<td align="center" width="25%">
-<h3>10</h3>
-<b>编程语言</b>
-</td>
-<td align="center" width="25%">
-<h3>50</h3>
-<b>源项目</b>
-</td>
-<td align="center" width="25%">
-<h3>2,145</h3>
-<b>评审意见</b>
-</td>
-</tr>
-</table>
-</div>
+示例安装 OpenCodeReview。其他评审器的安装命令如下：
 
-### 分类统计结果
-##### 语言类别占比
-<img src="imgs/comments-distribution.png" width="40%" />
+| 评审器 | 安装命令 |
+| --- | --- |
+| Claude Code | `npm install -g @anthropic-ai/claude-code` |
+| Codex | `npm install -g @openai/codex` |
 
-<img src="imgs/category_zh.png" width="49%" /><img src="imgs/context_zh.png" width="49%" />
+后续命令均在 `evaluation/` 目录中执行，使用已激活的虚拟环境。
 
+### 2. 配置模型
 
-### 数据格式
-```json
-{
-  "type": "array",
-  "item": {
-    "change_line_count": {"type": "integer", "description": "修改的行数量"},
-    "project_main_language":  {"type": "string", "description": "项目主语言"},
-    "source_commit":  {"type": "string", "description": "源commit"},
-    "target_commit":  {"type": "string", "description": "目标commit"},
-    "githubPrUrl":  {"type": "string", "description": "github 的pr地址"},
-    "created_at":  {"type": "string", "format": "date-time", "description": "PR 创建时间（GitHub API 的 UTC ISO 8601 时间）"},
-    "merged_at":  {"type": "string 或 null", "format": "date-time", "description": "PR 合并时间（UTC ISO 8601）；未合并时为 null"},
-    "comments": {
-      "is_ai_comment": {"type": "boolean", "description": "是否是AI评论"},
-      "note": {"type": "string", "description": "评论内容"},
-      "path": {"type": "string", "description": "文件路径"},
-      "side": {"type": "string", "description": "评论挂载位置"},
-      "source_model": {"type": "string", "description": "来源模型"},
-      "from_line": {"type": "integer", "description": "开始行号"},
-      "to_line": {"type": "integer", "description": "结束行号"},
-      "category": {"type": "string", "description": "问题分类：安全漏洞/代码缺陷/可维护性与可读性/性能问题"},
-      "context": {"type": "string", "description": "评论的作用域：diff级/文件级/仓库级"}
-    }
-  }
-}
+```bash
+if [ ! -e .env ] && [ ! -L .env ]; then
+  cp -n .env.example .env
+fi
+chmod 600 .env
 ```
 
-## 📏 评测指标
-我们采用多维度指标体系全面评估代码审查模型的性能，完整的指标定义、计算方法和分语言统计请查看 [metrics.md](docs/zh/metrics.md)。
+复制时不会覆盖已有 `.env`。编辑现有文件，按 [.env.example](evaluation/.env.example) 填写评审模型和裁判模型配置：
 
-### 核心指标
-| 指标                         | 说明          | 计算公式              |
-|----------------------------|-------------|-------------------|
-| **准确率** (Precision)        | 模型生成的有效评论占比 | `有效匹配数 / 生成总数`    |
-| **召回率** (Recall)           | 发现标注集中问题的能力 | `有效匹配数 / 数据集中有效数` |
-| **行级准确率** (Line Precision) | 精确定位到代码行的能力 | `行号匹配数 / 生成总数`    |
-| **噪声率** (Noise Rate)       | 无效或错误评论的比例  | `未匹配数 / 生成总数`     |
+| 用途 | 配置变量 |
+| --- | --- |
+| OpenCodeReview 评审 | `OCR_LLM_URL`、`OCR_LLM_TOKEN`、`OCR_LLM_MODEL`；可选 `OCR_USE_ANTHROPIC` |
+| 裁判评测 | `JUDGE_BASE_URL`、`JUDGE_API_KEY`、`JUDGE_MODEL` |
+
+程序会自动读取 `.env`；从终端传入的同名环境变量优先。缺少 `JUDGE_API_KEY` 或设置 `JUDGE_USE_MOCK=true` 时，使用本地相似度模拟判定，仅用于检查流程。比较模型表现时需配置真实裁判模型。
+
+### 3. 转换与预览
+
+```bash
+python -m converters.aacr_bench --version v2 --seed 42 --validate
+
+python -m pipeline run --stage review --reviewer ocr \
+  --dataset data/aacr_bench_v2.jsonl \
+  --limit 2 --preview --run-id v2-preview
+```
+
+转换时会随机排列样本；对同一份输入数据使用相同的随机种子（如 `--seed 42`），每次得到的样本顺序一致。`--limit 2` 只处理转换后 JSONL 文件（每行一个 JSON 对象）中的前两条样本。重新转换会覆盖输出文件；改变输入或抽样参数时，应该使用新的 `--output` 路径，并保留原实验的数据文件与顺序。预览检查所需提交和代码差异，不调用评审模型；`--stage review` 确保此时不执行裁判评测。
+
+### 4. 评审与评测
+
+```bash
+python -m pipeline run --reviewer ocr \
+  --dataset data/aacr_bench_v2.jsonl \
+  --limit 2 --run-id v2-baseline
+```
+
+命令先执行评审阶段，调用评审模型生成意见；再执行裁判评测阶段。在真实裁判模式下，后者调用裁判模型进行语义匹配；本地模拟模式只计算相似度。程序随后计算指标，两个阶段均只处理上述前两条样本。
+
+本示例的评审结果保存在 `results/aacr_bench_v2/ocr/v2-baseline/`，指标保存在 `metrics/aacr_bench_v2/ocr/v2-baseline/`。再次评审时使用不同的运行名称，以保留之前的结果。
+
+使用 v1 时，将转换命令改为 `--version v1`，数据路径改为 `data/aacr_bench.jsonl`。配置相应 agent 和模型后，通过 `--reviewer claude` 或 `--reviewer codex` 选择其他评审器。
+
+模型配置、并发评审、只运行评审、评测已有结果及仓库准备的说明，见[评测指南](evaluation/README.zh-CN.md)。
 
 
-## 🤝 贡献指南
-我们欢迎社区贡献！如果您想为 AACR-Bench 做出贡献，请按照以下步骤操作：
+## 评测指标
 
-1. **Fork** 本仓库
-2. **创建** 特性分支 (`git checkout -b feat/add-new-prs`)
-3. **提交** 更改 (`git commit -m 'feat: add new PRs'`)
-4. **推送** 到分支 (`git push origin feat/add-new-prs`)
-5. **创建** Pull Request
+默认按文件对照生成意见和参考意见，判断它们是否指出同一问题，称为**文件级语义覆盖**。一条生成意见可以匹配多条参考意见；统计精确率时，至少匹配一条此前尚未匹配的参考意见，才计入分子。
 
-详细贡献指南请参考 [CONTRIBUTING.md](CONTRIBUTING.zh-CN.md)
+| 指标 | 含义 |
+| --- | --- |
+| 精确率（Precision） | 至少匹配一条此前未匹配参考意见的生成意见数 / 全部生成意见数 |
+| 召回率（Recall） | 被匹配的参考意见数（去重）/ 全部参考意见数 |
+| 平衡分数（Balanced Score） | 精确率与召回率的调和平均 |
 
-## 👥 作者与维护者
-| 姓名      | GitHub                                             | 负责领域  | 主要职责                 |
-|:--------|:---------------------------------------------------|:------|:---------------------|
-| **李峥峰** | [@lizhengfeng](https://github.com/lizhengfeng101)  | 项目负责人 | 总体架构设计、技术方向把控        |
-| **王博格** | [@wangboge](https://github.com/wbgbg)              | 技术顾问  | 技术方案评审、技术指导          |
-| **张耒**  | [@zhanglei](https://github.com/TongWu-ZL)          | 数据架构  | 评测框架架构、指标体系设计、性能优化   |
-| **于永达** | [@yuyongda](https://github.com/inkeast)            | 评测系统  | 数据模式设计、评测协议制定、质量控制标准 |
-| **郭欣欣** | [@guoxinxin](https://github.com/guoxinxin125)      | 标注平台  | 标注系统开发、工作流设计、质量保证机制  |
-| **余明晖** | [@yuminghui](https://github.com/yuminghui)         | AI增强  | LLM标注流程、模型选择、提示工程优化  |
-| **庄正奇** | [@zhuangzhengqi](https://github.com/ZhengqiZhuang) | 工程化   | CI/CD流程、自动化测试、部署脚本   |
+分数衡量生成意见与参考意见的匹配程度，未匹配的意见仍可能指出真实问题。解读时应查看 `missing_instances`：文件缺失、无法读取、JSON 解析失败或顶层不是对象的结果不计入指标分母。定义及旧评分见[指标说明](docs/zh/metrics.md)。
 
+## 文档
 
-## 📄 许可
-本项目采用 Apache License 2.0 许可证，有关详细信息，请参阅 [LICENSE](LICENSE) 文件。
+- [评测指南](evaluation/README.zh-CN.md)：安装、模型配置、命令参数与结果保存目录。
+- [指标说明](docs/zh/metrics.md)：匹配、评分和审计字段。
+- [Alibaba-Aone/aacr-bench](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench)：Hugging Face 评论级数据集。
+- [Alibaba-Aone/aacr-bench-repos](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench-repos)：Hugging Face 来源仓库快照。
 
-## 📚 引用
-如果您在研究中使用了AACR-Bench，请引用我们的论文：
+## 贡献
+
+贡献指南见 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)。
+
+## 许可
+
+[Apache License 2.0](LICENSE)。第三方仓库快照遵循原仓库的许可证。
+
+## 引用
+
+在研究中使用 AACR-Bench 时，请引用：
+
 ```bibtex
 @misc{zhang2026aacrbenchevaluatingautomaticcode,
-      title={AACR-Bench: Evaluating Automatic Code Review with Holistic Repository-Level Context}, 
+      title={AACR-Bench: Evaluating Automatic Code Review with Holistic Repository-Level Context},
       author={Lei Zhang and Yongda Yu and Minghui Yu and Xinxin Guo and Zhengqi Zhuang and Guoping Rong and Dong Shao and Haifeng Shen and Hongyu Kuang and Zhengfeng Li and Boge Wang and Guoan Zhang and Bangyu Xiang and Xiaobin Xu},
       year={2026},
       eprint={2601.19494},
       archivePrefix={arXiv},
       primaryClass={cs.SE},
-      url={https://arxiv.org/abs/2601.19494}, 
+      url={https://arxiv.org/abs/2601.19494},
 }
 ```
 
-## 🗺️ 路线图
-- [x] v1.0 (2026.01): 初始发布 - 200个PR，10种语言
+## 致谢
 
-## 🌟 致谢
-- 感谢所有参与数据标注的贡献者，特别是完成15条以上有效标注的核心贡献者，完整名单见 [CONTRIBUTORS.md](CONTRIBUTORS.md)。
-- 感谢提供原始PR数据的开源项目维护者。
+感谢[数据标注贡献者](CONTRIBUTORS.md)，以及提供原始 PR 数据的开源项目维护者。

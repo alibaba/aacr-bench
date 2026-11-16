@@ -14,6 +14,8 @@ import argparse
 import asyncio
 import json
 import logging
+import os
+import subprocess
 import sys
 import threading
 from collections import OrderedDict
@@ -23,7 +25,13 @@ from typing import Any, Callable, Dict, List, Optional
 
 import config
 import evaluate
-from repo_utils import RepoError, log
+from repo_utils import (
+    RepoError,
+    RepoPreparer,
+    clear_active_repo_preparer,
+    log,
+    set_active_repo_preparer,
+)
 from reviewers import claude as claude_reviewer
 from reviewers import codex as codex_reviewer
 from reviewers import ocr as ocr_reviewer
@@ -101,6 +109,13 @@ def _review_one_instance(
     except RepoError as error:
         log(f"ERROR processing {instance.instance_id}: {error}")
         return {"instance_id": instance.instance_id, "status": "error", "error": str(error)}
+    except subprocess.TimeoutExpired as error:
+        log(f"ERROR processing {instance.instance_id}: review timed out: {error}")
+        return {
+            "instance_id": instance.instance_id,
+            "status": "error",
+            "error": f"review timed out: {error}",
+        }
     finally:
         if on_done is not None:
             on_done(instance.instance_id)
@@ -331,17 +346,28 @@ def run_pipeline(args) -> int:
         return 0
 
     if args.stage in ("all", "review"):
-        run_review_stage(
-            instances=instances,
-            reviewer=args.reviewer,
+        os.environ.setdefault("GIT_LFS_SKIP_SMUDGE", "1")
+        archive_dir = config.default_snapshot_archive_dir(args.repo_dir)
+        preparer = RepoPreparer(
             repo_dir=args.repo_dir,
-            results_dir=args.results_dir,
-            timeout_minutes=args.timeout_minutes,
-            preview=args.preview,
-            concurrency=args.concurrency,
-            ocr_command=args.ocr_command,
-            max_tools=args.max_tools,
+            archive_dir=archive_dir,
+            dataset_path=args.dataset,
         )
+        set_active_repo_preparer(preparer)
+        try:
+            run_review_stage(
+                instances=instances,
+                reviewer=args.reviewer,
+                repo_dir=args.repo_dir,
+                results_dir=args.results_dir,
+                timeout_minutes=args.timeout_minutes,
+                preview=args.preview,
+                concurrency=args.concurrency,
+                ocr_command=args.ocr_command,
+                max_tools=args.max_tools,
+            )
+        finally:
+            clear_active_repo_preparer()
 
     if args.stage in ("all", "eval"):
         run_eval_stage(

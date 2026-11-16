@@ -13,6 +13,9 @@ benchmark/**/*.part
 # 仓库 clone 缓存（体积大，自动生成）
 repo/
 
+# HF 快照压缩包与解压缓存（体积大，自动生成）
+snapshots/
+
 # 转换后的标准数据集（由转换器生成）
 data/*.jsonl
 
