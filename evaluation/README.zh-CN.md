@@ -1,62 +1,73 @@
-# evaluation — 统一代码审查评测框架
+# AACR-Bench 评测流水线
 
-把 **数据加载 → 执行评审 → 执行评测** 三个阶段整合成一条可配置流水线。
-
-核心目标：定义一套**标准数据格式**。任何新 benchmark 出来后，只需写一个转换器
-把它转成标准格式，就能**一键运行**评审与评测，无需改动框架代码。
-
----
+[English](README.md) | 简体中文
 
 ## 目录结构
 
-```
+```text
 evaluation/
-├── pipeline.py            # CLI 入口 + 编排：python -m pipeline run ...
-├── schema.py              # 标准数据格式（dataclass）+ JSONL 加载校验
-├── config.py              # 路径 / 环境变量 / 命名规则集中配置
-├── repo_utils.py          # Git 操作 + 按需仓库准备（缓存/HF/GitHub）
-├── reviewers/
-│   ├── ocr.py             # OCR（OpenCodeReview）评审器
-│   ├── claude.py          # Claude Code 评审器（含 MCP 增量上报 + 多级兜底）
-│   └── codex.py           # Codex 评审器（MCP 增量上报 + JSONL 兜底，与 Claude 同构）
-├── mcp_finding_server.py        # Claude 评审用的 stdio MCP findings server
-├── mcp_codex_finding_server.py  # Codex 评审专用（finding schema 与 Claude 版不同）
-├── judge.py               # 评测核心：四阶段匹配 + 指标统计 + 语义判定（LLM/Mock）
-├── evaluate.py            # 评测编排：对齐数据 -> 调 judge -> 汇总指标
+├── pipeline.py                # 命令入口，执行数据加载、评审和评测
+├── config.py                  # 配置变量、默认值和保存路径
+├── schema.py                  # JSONL 样本格式与数据检查
+├── repo_utils.py              # 仓库获取、缓存和提交检查
+├── evaluate.py                # 汇总评审结果，计算并保存指标
+├── judge.py                   # 调用裁判进行语义匹配
+├── reviewers/                 # 评审器调用与结果收集
+│   ├── ocr.py                 # OpenCodeReview
+│   ├── claude.py              # Claude Code
+│   └── codex.py               # Codex
+├── mcp_finding_server.py       # 接收 Claude Code 上报的评审意见
+├── mcp_codex_finding_server.py # 接收 Codex 上报的评审意见
+├── hooks/
+│   └── on_stop_failure.py     # 记录 Claude Code 重试耗尽事件
 ├── converters/
-│   └── aacr_bench.py      # AACR-Bench -> 标准格式 转换器
-├── benchmark/<名字>/      # 各 benchmark 的原始数据（提交 *.meta.json 描述，数据首次运行时自动下载并校验）
-├── data/<名字>.jsonl      # 转换后的标准格式数据集（按 benchmark 命名）
-├── repo/                  # 仓库 clone 缓存（<owner__name>，自动生成）
-├── snapshots/             # HF 快照压缩包 + 解压仓库缓存（repo-dir 在其他位置时）
-├── results/<benchmark>/<reviewer>/<run_id>/   # 评审结果（每次 run 独立目录，防覆盖）
-└── metrics/<benchmark>/<reviewer>/<run_id>/   # 评测指标（与 results 镜像对齐）
+│   └── aacr_bench.py          # 将原始数据转换为 JSONL
+├── benchmark/AACR-Bench/
+│   ├── v1/                   # v1 原始数据缓存和下载信息
+│   └── v2/                   # v2 原始数据缓存和下载信息
+├── data/                     # 转换后的 JSONL 数据
+├── repo/                     # 默认仓库缓存
+├── snapshots/                # 默认仓库快照压缩包缓存
+├── results/                  # 评审结果，按数据集、评审器和运行名称保存
+├── metrics/                  # 评测指标，与评审结果使用相同的目录分组
+├── .env.example              # 模型配置模板
+└── requirements.txt          # Python 依赖及固定版本
 ```
 
-> **数据目录约定**：原始数据放 `benchmark/<benchmark名>/`（如 `benchmark/AACR-Bench/v1/`、`benchmark/AACR-Bench/v2/`），
-> 转换器读取后产出标准数据到 `data/<benchmark_key>.jsonl`（如 `data/aacr_bench.jsonl`），
-> 按 benchmark 命名避免多个 benchmark 互相覆盖。
+数据、缓存和结果目录按需创建，图中列出默认位置。
 
----
+## 流水线
+
+本目录包含数据转换器和代码评审评测程序。转换器先生成 JSONL 文件（每行一个 JSON 对象），评测程序 `pipeline` 再执行以下阶段：
+
+| 阶段 | 内容 | 模型调用 |
+| --- | --- | --- |
+| 数据加载 | 读取样本、提交范围和参考评审意见，校验格式 | 无 |
+| 评审 | 由 OpenCodeReview（OCR）、Claude Code 或 Codex 生成评审意见 | 评审模型；预览时不调用 |
+| 裁判评测 | 对照参考意见进行语义匹配，并计算指标 | 真实裁判模型；本地模拟模式不调用 |
+
+评审前优先使用本地仓库或压缩包缓存；缓存不可用时，先下载 Hugging Face 仓库快照，快照不可用时再从 GitHub 克隆对应仓库。缓存目录由程序管理，不应指向开发中的仓库或共享只读目录。
+
+默认按文件匹配生成意见与参考意见，计算精确率（Precision）、召回率（Recall）和平衡分数（Balanced Score）。生成意见至少匹配一条此前尚未匹配的参考意见，才计入精确率分子。定义见[指标说明](../docs/zh/metrics.md)，数据背景见[项目 README](../README.zh-CN.md)。
 
 ## 标准数据格式
 
-数据集为 **JSONL**，每行一个样本（`ReviewInstance`）：
+数据集采用 **JSONL**，每行一个样本（`ReviewInstance`）。以下示例取自 v2 中的 [browser-use/browser-use PR #1482](https://github.com/browser-use/browser-use/pull/1482)，为便于阅读展开显示：
 
 ```json
 {
-  "instance_id": "psf__requests-5711@9484e13",
-  "repo": "psf/requests",
-  "base_commit": "5351469472eccee7ed1a6cae53341446c520d807",
-  "head_commit": "9484e13c7da927119fe82794bb5571cec144b6d7",
-  "clone_url": "https://github.com/psf/requests.git",
+  "instance_id": "browser-use__browser-use@0b21e50",
+  "repo": "browser-use/browser-use",
+  "base_commit": "fa461585f1fc2d4a430e68e6c115a12f4936fe73",
+  "head_commit": "0b21e50ca640581ecd46990475c8b223eaa05045",
+  "clone_url": "https://github.com/browser-use/browser-use.git",
   "reference_comments": [
     {
-      "path": "setup.py",
-      "start_line": 46,
-      "end_line": 46,
-      "side": "left",
-      "text": "评论正文（人工标注的参考答案）"
+      "path": "browser_use/browser/browser.py",
+      "start_line": 290,
+      "end_line": 292,
+      "side": "right",
+      "text": "`self.config.chrome_remote_debugging_port` is typed as `int | None`. If it is `None`, `socket.connect_ex` will raise a `TypeError` because it expects an integer port. Suggest adding a check for `None` or ensuring it is a valid integer before using it here."
     }
   ]
 }
@@ -65,361 +76,206 @@ evaluation/
 字段说明：
 
 | 字段 | 必填 | 说明 |
-| ---- | ---- | ---- |
-| `instance_id` | 是 | 样本唯一标识；结果文件名为 `instance_id.replace("/", "__") + .json` |
-| `repo` | 是 | `owner/name` 形式 |
-| `base_commit` | 是 | 评审 diff 的起点 commit |
-| `head_commit` | 是 | 评审 diff 的终点 commit（被评审的代码状态） |
-| `clone_url` | 否 | 缺省按 `repo` 推导 GitHub 地址 |
-| `reference_comments[]` | 否 | 人工标注的参考评论；为空表示该样本无参考答案 |
-| `reference_comments[].path` | 是 | 评论所在文件路径 |
-| `reference_comments[].start_line` / `end_line` | 否 | 行号闭区间 `[start, end]`；单点令两者相等；可为 `null` |
-| `reference_comments[].side` | 否 | `"left"` 或 `"right"`，评论附着在 diff 的哪一侧；可为 `null` |
-| `reference_comments[].text` | 是 | 评论正文 |
+| --- | --- | --- |
+| `instance_id` | 是 | 样本唯一标识，非空字符串；结果文件名为 `instance_id.replace("/", "__") + ".json"` |
+| `repo` | 是 | `owner/name` 形式的仓库名称 |
+| `base_commit` | 是 | 计算评审范围所用的基准提交 |
+| `head_commit` | 是 | 被评审代码状态对应的目标提交 |
+| `clone_url` | 否 | 克隆地址，缺省根据 `repo` 生成 GitHub 地址 |
+| `reference_comments[]` | 否 | 已标注的参考评审意见，缺省为空数组 |
+| `reference_comments[].path` | 是 | 参考意见对应的文件路径，非空字符串 |
+| `reference_comments[].start_line` / `end_line` | 否 | 闭区间行号范围；正整数或 `null`，单行时两者相同 |
+| `reference_comments[].side` | 否 | `left` 或 `right`，表示代码差异的旧侧或新侧，也可为 `null` |
+| `reference_comments[].text` | 是 | 参考意见正文，非空字符串 |
 
-> **行号约定**：参考评论统一用闭区间。评测时，Claude 的单个 `line` 视为起始=终止，
-> OCR 与 Codex 的 `start_line/end_line` 直接使用，与参考的区间做重叠 / 距离 ≤ k 的匹配。
+行号只提供一个端点时会补齐另一个，起止顺序相反时会自动调整。默认文件级评分不按行号或 `side` 筛选，行号仅作为裁判上下文；旧逐条评分才按 `side`、行号区间和容差匹配。
 
-加载时（`schema.load_instances`）会**逐行校验**：必填字段非空、行号为正整数或 null、
-`instance_id` 不重复。任何非法行都会带行号定位抛 `SchemaError`，让问题数据尽早暴露。
+加载时检查必填字段、行号和重复 `instance_id`，格式错误会提示所在行。使用 `--limit` 时，只检查已加载的样本；字段定义见 [schema.py](schema.py)。
 
----
+## 可配置项
+
+### 模型与网络
+
+`pipeline` 启动时自动读取本目录的 `.env`；从终端传入的同名环境变量优先。填写所选评审器和裁判的配置：
+
+| 用途 | 配置变量 |
+| --- | --- |
+| OCR 评审 | `OCR_LLM_URL`、`OCR_LLM_TOKEN`、`OCR_LLM_MODEL` |
+| Claude Code 评审 | `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_MODEL` |
+| Codex 评审 | `CODEX_API_KEY`；可通过 `CODEX_MODEL` 指定模型 |
+| 裁判评测 | `JUDGE_BASE_URL`、`JUDGE_API_KEY`、`JUDGE_MODEL` |
+
+| 可选变量 | 含义 |
+| --- | --- |
+| `OCR_USE_ANTHROPIC` | `true` 使用 Anthropic 协议；`false` 使用 OpenAI 协议 |
+| `CLAUDE_CODE_MAX_RETRIES` | Claude Code 重试次数，默认 10 |
+| `CODEX_GATEWAY_URL` | 兼容 Codex 的模型网关地址 |
+| `CODEX_HOME_BASE`、`CODEX_HOME_BACKUP` | Codex 临时配置目录的上级目录、运行后保存配置的位置 |
+| `JUDGE_USE_MOCK` | `true` 时使用本地相似度判定 |
+| `JUDGE_CONCURRENCY` | 文件级裁判请求并发数，默认 3 |
+| `HF_ENDPOINT` | Hugging Face 服务或镜像地址 |
+| `NETWORK_TIMEOUT_SECONDS` | 连接检查和部分下载请求的超时秒数，默认 60；不控制裁判请求或整次运行的总时长 |
+
+未设置 `CODEX_MODEL` 时使用 Codex 默认模型；未设置 `CODEX_HOME_BACKUP` 时，生成的配置目录会在运行后清理。缺少 `JUDGE_API_KEY` 或启用 `JUDGE_USE_MOCK` 会进入本地模拟模式，仅适用于流程校验；评测日志会显示实际裁判模式。
+
+### 运行参数
+
+| 参数 | 默认值 | 含义 |
+| --- | --- | --- |
+| `--reviewer` | 必填 | `ocr`、`claude` 或 `codex` |
+| `--dataset` | 必填 | 转换后的 JSONL 文件 |
+| `--stage` | `all` | `all` 连续评审和评测；`review` 仅评审；`eval` 仅评测 |
+| `--run-id` | 评审时自动生成 | 运行名称；使用默认保存目录且只执行评测时，需要已有的运行名称 |
+| `--limit` | 全部 | 取 JSONL 前 N 条样本，使用正整数 |
+| `--concurrency` | `1` | 并发评审的仓库组数，同一仓库串行 |
+| `--timeout-minutes` | `30` | 每条样本的评审超时，单位为分钟 |
+| `--eval-rounds` | `1` | 裁判评测轮数，使用正整数 |
+| `--repo-dir` | `repo/` | 程序管理的仓库缓存目录 |
+| `--results-dir` | 自动选择 | 评审结果和指标直接保存到指定目录，不按运行名称生成目录 |
+| `--ocr-command` | `ocr` | PATH 环境变量可找到的 OCR 命令名或二进制绝对路径 |
+| `--max-tools` | `30` | 传给 OCR 的每文件工具调用限制；取值范围由 OCR 决定 |
+| `--preview` | 关闭 | 检查仓库与差异，不调用评审模型；配合 `--stage review` |
+| `--use-deprecated-score` | 关闭 | 使用旧逐条语义及行号评分 |
+| `--line-k` | `1` | 仅影响旧评分的行号容差 |
+
+评审进程的超时时间为 `--timeout-minutes` 指定的分钟数，再加额外时间：OpenCodeReview 五分钟，Claude Code/Codex 一分钟。网络超时和评审超时分别设置；`--timeout-minutes` 不控制裁判请求。
+
+### 数据转换
+
+| 参数 | 默认值 | 含义 |
+| --- | --- | --- |
+| `--version` | `v1` | 选择 `v1` 或 `v2` 正例数据 |
+| `--input` | 版本对应路径 | 原始 JSON 文件 |
+| `--output` | 版本对应路径 | JSONL 输出文件 |
+| `--limit` | 全部 | 打乱原始数据后取前 N 条 |
+| `--seed` | 每次随机 | 固定样本顺序 |
+| `--validate` | 关闭 | 检查转换后的数据格式，不判断标注是否正确 |
+
+v1 默认输出 `data/aacr_bench.jsonl`，v2 输出 `data/aacr_bench_v2.jsonl`。原始数据首次使用时可按元数据文件下载并校验；自定义 AACR-Bench 输出文件名应保留 `v1` 或 `v2`，供连接检查识别版本。
 
 ## 快速开始
 
-### 0. 准备环境
+以下示例使用 **v2 数据集和 OpenCodeReview**。获取本仓库源码后，从 `aacr-bench` 目录开始执行。
 
-本框架自带独立的 [uv](https://docs.astral.sh/uv/) 虚拟环境（`evaluation/.venv`），
-依赖锁定在 `evaluation/requirements.txt`，开箱即用、与项目其它部分隔离。
+需要 Python 3.11 及以上，示例使用 Python 3.12。安装 [uv](https://docs.astral.sh/uv/) 和 Git；OpenCodeReview 需要 Git 2.41 及以上。通过 npm 安装评审器时，还需要 Node.js 和 npm。
 
-> **前置工具**（首次使用需先装好）：
->
-> - [uv](https://docs.astral.sh/uv/)：Python 环境与依赖管理
-> - benchmark 原始数据无需 Git LFS：每个 benchmark 提交一份 `*.meta.json`（含 url + sha256），
->   转换器首次运行时**自动下载并校验**，缓存到 `benchmark/<名字>/` 供后续复用。
-> - Node.js / npm：安装评审器 CLI 所需。
+### 1. 安装
 
 ```bash
-# 0) 进入框架目录（后续所有命令都在 evaluation/ 内执行）
 cd evaluation
-
-# 1) 创建框架专属虚拟环境并安装锁定依赖
-uv venv .venv --python 3.11
+uv venv .venv --python 3.12
 uv pip install -r requirements.txt
-
-# 2) 激活虚拟环境（之后直接用 python 即可）
 source .venv/bin/activate
-
-# 3) 安装评审器 CLI（按需，全局安装）
-npm install -g @alibaba-group/open-code-review   # ocr 评审器
-npm install -g @anthropic-ai/claude-code         # claude 评审器
-npm install -g @openai/codex                    # codex 评审器
-
-# 4) 配置 LLM：从模板复制出 .env 并填入真实 token
-#    （.env 已被 .gitignore 忽略，不会误提交泄露）
-cp .env.example .env
-# 编辑 .env 填好 OCR / Claude / Codex / Judge 四套配置后加载到当前 shell：
-set -a && source .env && set +a
+npm install -g @alibaba-group/open-code-review
 ```
 
-> **运行约定**：所有命令都在 `evaluation/` 目录内、激活 venv 后执行：
-> `python -m pipeline run ...`（评审/评测）、`python -m converters.<benchmark> ...`（转换）。
-> Claude / Codex 评审用的 MCP server 子进程通过 `sys.executable` 复用同一解释器，无需额外配置。
+示例安装 OpenCodeReview。其他评审器的安装命令如下：
 
-`evaluation/.env` 中四套配置各司其职：
+| 评审器 | 安装命令 |
+| --- | --- |
+| Claude Code | `npm install -g @anthropic-ai/claude-code` |
+| Codex | `npm install -g @openai/codex` |
 
-| 用途 | 变量 |
-| ---- | ---- |
-| OCR 评审 | `OCR_LLM_URL` / `OCR_LLM_TOKEN` / `OCR_LLM_MODEL` / `OCR_USE_ANTHROPIC` |
-| Claude 评审 | `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL` |
-| Codex 评审 | `CODEX_API_KEY`（必填）/ `CODEX_MODEL`（可选）/ `CODEX_GATEWAY_URL`（可选） |
-| 评测裁判（Judge） | `JUDGE_BASE_URL` / `JUDGE_API_KEY` / `JUDGE_MODEL` / `JUDGE_USE_MOCK` / `JUDGE_CONCURRENCY` |
+后续命令均在 `evaluation/` 目录中执行，使用已激活的虚拟环境。
 
-> **Codex 配置写入临时 config.toml**：pipeline 会在 review 阶段开始时把
-> `CODEX_MODEL`（以及 `CODEX_GATEWAY_URL`，如提供）写入 `/tmp/codex_home.XXXXXX/config.toml`，
-> 通过 `CODEX_HOME=<tmp>` 重定向让 codex 读取，隔离用户 `~/.codex/config.toml`，保证可复现。
-> 设置 `CODEX_GATEWAY_URL` 后，框架自动生成 `model_provider = "gateway"` + `[model_providers."gateway"]` 段，
-> 将 Codex 重定向到自定义端点（如 MaaS / cc_switch 转发）而非直连 `api.openai.com`。
-> MCP server 通过 `env_vars` 字段从父进程继承 `REVIEW_RESULTS_DIR` / `REVIEW_INSTANCE_ID`。
-
-> **注意**：模型需兼容 Codex 的工具调用——不支持 MCP 工具调用的模型将无法上报 finding。
-
-> Judge 未配 `JUDGE_API_KEY` 或 `JUDGE_USE_MOCK=true` 时，语义匹配自动退化为本地 Mock
-> 相似度（零成本，仅用于验证流程；真实评测请配置真实裁判模型）。
-
-### 1. 把 benchmark 转换为标准格式
-
-> 以下命令均在 `evaluation/` 目录内执行（已激活 venv）。
-
-把原始数据放到约定位置 `benchmark/<benchmark名>/` 后，对应转换器默认即可读取，
-产出 `data/<benchmark_key>.jsonl`。当前已内置 AACR-Bench 的转换器：
+### 2. 配置模型
 
 ```bash
-# AACR-Bench v1（原始数据 benchmark/AACR-Bench/v1/ -> data/aacr_bench.jsonl）
-python -m converters.aacr_bench --version v1 --validate
-
-# AACR-Bench v2（151 PR / 944 评论 -> data/aacr_bench_v2.jsonl）
-python -m converters.aacr_bench --version v2 --validate
-
-# --validate：转换后用 schema 重新加载校验，确保产物合法
-# --limit N：先把全部样本乱序，再取前 N 条（随机抽样，不传则全量）
-# --seed N：乱序随机种子，指定后随机可复现（用于固定评测子集；默认每次随机）
-# 也可显式指定输入 / 输出：
-python -m converters.aacr_bench \
-    --input benchmark/AACR-Bench/v1/positive_samples.json \
-    --output data/aacr_bench.jsonl \
-    --limit 30 --seed 42 --validate
+if [ ! -e .env ] && [ ! -L .env ]; then
+  cp -n .env.example .env
+fi
+chmod 600 .env
 ```
 
-> **抽样随机性**：转换器会先打乱原始数据顺序再应用 `--limit`，因此 `--limit` 得到的是
-> **随机子集**而非固定的前 N 条。需要可复现的固定子集时传入 `--seed`。
+复制时不会覆盖已有 `.env`。编辑现有文件，按 [.env.example](.env.example) 填写评审模型和裁判模型配置：
 
-**转换器参数**（`python -m converters.<key> [options]`）：
+| 用途 | 配置变量 |
+| --- | --- |
+| OpenCodeReview 评审 | `OCR_LLM_URL`、`OCR_LLM_TOKEN`、`OCR_LLM_MODEL`；可选 `OCR_USE_ANTHROPIC` |
+| 裁判评测 | `JUDGE_BASE_URL`、`JUDGE_API_KEY`、`JUDGE_MODEL` |
 
-| 参数 | 默认值 | 说明 |
-| ---- | ------ | ---- |
-| `--version` | `v1` | AACR-Bench 数据版本：`v1` 或 `v2` |
-| `--input` | 约定路径 | 原始数据文件路径（默认 `benchmark/AACR-Bench/<version>/positive_samples.json`） |
-| `--output` | 约定路径 | 输出标准格式 JSONL 路径（v1 默认 `data/aacr_bench.jsonl`，v2 默认 `data/aacr_bench_v2.jsonl`） |
-| `--limit` | 全部 | 先整体乱序再取前 N 条（随机抽样，不传则全量） |
-| `--seed` | 每次随机 | 乱序随机种子；指定后随机可复现（用于固定评测子集） |
-| `--validate` | 关 | 转换后用 schema 重新加载校验，确保产物合法 |
+程序会自动读取 `.env`；从终端传入的同名环境变量优先。缺少 `JUDGE_API_KEY` 或设置 `JUDGE_USE_MOCK=true` 时，使用本地相似度模拟判定，仅用于检查流程。比较模型表现时需配置真实裁判模型。
 
-### 2. 一键运行（评审 + 评测）
+### 3. 转换与预览
 
 ```bash
-set -a && source .env && set +a
+python -m converters.aacr_bench --version v2 --seed 42 --validate
 
-# OCR 评审器，跑前 5 条
-python -m pipeline run --stage all --reviewer ocr --dataset data/aacr_bench.jsonl --limit 5 --concurrency 1 --run-id baseline
-
-# Claude 评审器，跑前 2 条，评审完直接评测
-python -m pipeline run --stage all --reviewer claude --dataset data/aacr_bench.jsonl --limit 2 --concurrency 1 --run-id baseline
-
-# Codex 评审器，跑前 2 条
-python -m pipeline run --stage all --reviewer codex --dataset data/aacr_bench.jsonl --limit 2 --concurrency 1 --run-id baseline
-```
-
----
-
-## CLI 参考
-
-> 在 `evaluation/` 目录内执行（已激活 venv）。
-
-```
-python -m pipeline run --reviewer {ocr|claude|codex} --dataset <标准JSONL> [options]
-```
-
-| 参数 | 默认值 | 说明 |
-| ---- | ------ | ---- |
-| `--reviewer` | （必填） | 评审器：`ocr` / `claude` / `codex` |
-| `--dataset` | （必填） | 标准格式数据集路径，如 `data/aacr_bench.jsonl` |
-| `--stage` | `all` | `all`（评审+评测）/ `review`（仅评审）/ `eval`（仅评测） |
-| `--repo-dir` | `repo/` | 仓库缓存目录（自动复用） |
-| `--results-dir` | `results/<benchmark>/<reviewer>/<run_id>` | 直接指定结果目录（高级用法，绕过 run 机制）；缺省按 dataset 自动推导 |
-| `--run-id` | 时间戳 | 本次 run 的目录名（如 `baseline`、`v2`）；review 不传则自动用时间戳命名；**eval 阶段必须显式指定** |
-| `--limit` | 全部 | 只处理标准数据集的前 N 条（数据集的随机性已在转换阶段决定，见上方转换器 `--seed`） |
-| `--line-k` | `1` | 评测行号匹配容差（重叠或距离 ≤ k 即命中）；仅 deprecated 评分模式有效 |
-| `--timeout-minutes` | `30` | 单条样本评审超时 |
-| `--eval-rounds` | `1` | 评测阶段执行轮数；多轮时各轮独立评测后取数值平均作为最终指标 |
-| `--use-deprecated-score` | 关 | 使用已弃用的旧指标体系（逐条 line/semantic 匹配的 P/R/F1）；默认使用文件级语义匹配指标（准确率 / 召回率 / 平衡分数） |
-| `--ocr-command` | `ocr` | OCR 评审器可执行文件路径；可指定本地 release 包路径（如 `./ocr-v2.0.0`），仅 ocr 评审器有效 |
-| `--max-tools` | `30` | OCR 每个文件最大工具调用轮数（控制单文件评审深度），仅 ocr 评审器有效 |
-| `--concurrency` | `1` | 评审阶段并发的 repo 组数（`1`=完全串行）；详见下方「并发评审」 |
-| `--preview` | 关 | 只 clone/checkout，不真正调用评审 LLM |
-
-### 仓库来源与 HF 快照
-
-仓库准备由 `prepare_repo` 按仓库逐个、按需执行，顺序如下：
-
-1. 当 `repo/<owner__name>` 为有效 Git 工作树且包含所需 commit 时，直接复用。
-2. 否则，当 `snapshots/repos/<owner__name>.tar.gz` 缓存存在时，直接解压复用。
-3. 否则，从 Hugging Face 快照仓 `Alibaba-Aone/aacr-bench-repos` 获取该仓库归档，校验
-   SHA-256 后通过安全解压流程解压。
-4. 若 Hugging Face 不可用或快照未覆盖该仓库，则通过 GitHub partial clone 获取，依次尝试
-   `--filter=tree:0`、`--filter=blob:none`，最后回退完整 clone。
-5. 检出 `base`、`merge-base`、`target`，并在 `GIT_NO_LAZY_FETCH=1` 下验证三点 diff，
-   以避免验证期间发生隐式 fetch。
-
-因此，`pipeline run` 仅准备当前样本所引用的仓库，不执行数据集级预准备阶段。
-
-```bash
-# 来源顺序固定：本地缓存 → HF 快照 → GitHub partial clone
-python -m pipeline run --reviewer ocr --dataset data/aacr_bench_v2.jsonl \
-  --run-id v2-smoke --limit 2 --preview
-
-python -m pipeline run --reviewer ocr --dataset data/aacr_bench.jsonl \
-  --run-id v1-smoke --limit 2 --preview
-```
-
-网络配置：
-
-```bash
-# 可选；默认 https://huggingface.co
-# export HF_ENDPOINT="https://your-hf-endpoint"
-
-# Hugging Face / GitHub 网络超时秒数（可选；默认 60）
-# export NETWORK_TIMEOUT_SECONDS="120"
-```
-
-预检失败会打印实际访问的完整 URL：
-
-```text
-[network] HF unavailable: <endpoint>/datasets/Alibaba-Aone/aacr-bench-repos/resolve/main/repos/SHA256SUMS: <error>
-[network] GitHub unavailable: <版本 meta URL>: <error>
-```
-
-### 并发评审（`--concurrency`）
-
-每条样本评审时会对其所属仓库做 `checkout` / `clean`，**同一仓库的样本共享同一个本地
-工作区**（`repo/<owner__name>`），并发会互相踩踏。因此并发模型按 `repo` 分组：
-
-- **组间并发**：不同 repo 的样本可同时评审，最多 `--concurrency` 个 repo 组并行
-- **组内串行**：同一 repo 的样本严格顺序执行，互不干扰
-- `--concurrency 1`（默认）= 完全串行，与改造前行为一致
-
-只作用于评审阶段（`review`）；评测阶段为纯本地计算 + LLM 判定，不受影响。
-
-```bash
-# 4 个 repo 组并行评审（同一 repo 的样本仍串行）
 python -m pipeline run --stage review --reviewer ocr \
-    --dataset data/aacr_bench.jsonl --concurrency 4
+  --dataset data/aacr_bench_v2.jsonl \
+  --limit 2 --preview --run-id v2-preview
 ```
 
-> 实际并发数会被自动夹到 `min(--concurrency, repo 组数)`。
+转换时会随机排列样本；对同一份输入数据使用相同的随机种子（如 `--seed 42`），每次得到的样本顺序一致。`--limit 2` 只处理转换后 JSONL 文件（每行一个 JSON 对象）中的前两条样本。重新转换会覆盖输出文件；改变输入或抽样参数时，应该使用新的 `--output` 路径，并保留原实验的数据文件与顺序。预览检查所需提交和代码差异，不调用评审模型；`--stage review` 确保此时不执行裁判评测。
 
-### 分阶段运行 + 多次评测对比（run 机制）
-
-每次 review 都会自动创建一个独立的 run 目录 `results/<benchmark>/<reviewer>/<run_id>/`，
-评审结果与评测指标都落在该目录内，**多次评测互不覆盖**，便于横向对比。
+### 4. 评审与评测
 
 ```bash
-# 只评审（自动创建时间戳 run 目录）
-python -m pipeline run --stage review --reviewer claude --dataset data/aacr_bench.jsonl --limit 5
-
-# 给本次 run 起个有意义的名字（run 目录就叫 baseline）
-python -m pipeline run --stage review --reviewer claude --dataset data/aacr_bench.jsonl --run-id baseline
-
-# 换不同参数再跑一次，互不覆盖
-python -m pipeline run --stage review --reviewer claude --dataset data/aacr_bench.jsonl --run-id run2
-
-# 只评测（必须指定 --run-id）
-python -m pipeline run --stage eval --reviewer claude --dataset data/aacr_bench.jsonl --run-id baseline
-
-# 多轮评测取平均（减少单次随机波动）
-python -m pipeline run --stage eval --reviewer claude --dataset data/aacr_bench.jsonl --run-id baseline --eval-rounds 3
+python -m pipeline run --reviewer ocr \
+  --dataset data/aacr_bench_v2.jsonl \
+  --limit 2 --run-id v2-baseline
 ```
 
----
+命令先执行评审阶段，调用评审模型生成意见；再执行裁判评测阶段。在真实裁判模式下，后者调用裁判模型进行语义匹配；本地模拟模式只计算相似度。程序随后计算指标，两个阶段均只处理上述前两条样本。
 
-## 三个阶段的工作机制
+本示例的评审结果保存在 `results/aacr_bench_v2/ocr/v2-baseline/`，指标保存在 `metrics/aacr_bench_v2/ocr/v2-baseline/`。再次评审时使用不同的运行名称，以保留之前的结果。
 
-### 数据加载（schema.py）
+使用 v1 时，将转换命令改为 `--version v1`，数据路径改为 `data/aacr_bench.jsonl`。配置相应 agent 和模型后，通过 `--reviewer claude` 或 `--reviewer codex` 选择其他评审器。
 
-读取标准 JSONL → 逐行校验 → 产出 `ReviewInstance` 列表。`--limit N` 按**原始数据顺序**取前 N 条。
 
-### 执行评审（reviewers/）
+## 常用操作
 
-对每条样本：`clone/fetch` → `checkout head_commit` → 调用评审器 → 写 `<safe_id>.json`。
-评审过程带**进度条**（已完成 / 总数 + 实时速率 + ETA），可用于预估总耗时；
-多 repo 并发时进度条线程安全地汇总推进（并发机制见上方「并发评审」）。
+### 分阶段运行
 
-**工作区清理（三个评审器统一）**：评审**前后**都执行 `git reset --hard && git clean -fdx`
-清理工作区（评审前清理由 `checkout_commit` 内置保证，评审后由各评审器在落盘结果后调用
-`clean_worktree`）。避免评审器在仓库里留下的临时文件 / 改动污染下一次 checkout。
+先评审，再对已有结果评测：
 
-- **OCR**：`ocr review --from base --to head --format json`，结果存 `review.comments[]`。
-- **Claude**：官方 `/code-review <base>...<head>`，结构化输出靠两条腿：
-  1. **MCP 增量上报**：Claude 每确认一条 finding 就调一次 `report` 工具，写入
-     `<safe_id>.partial.json`，与最终文本格式解耦；
-  2. **stdout 解析兜底**：兼容单 JSON envelope 与逐行 stream-json（模型即使被要求输出 json 仍可能返回 stream-json），从中取最终文本再解析 finding；无法解析时按空评审 / 原始文本处理。
-     最终取两者中 finding **数量较多**的一方（平局优先 MCP），`review_output_source`
-     标记为 `mcp_stream` 或 `stdout_fallback`。
-- **Codex**：`codex exec "/review <base>...<head>"`，与 Claude 完全同构的双通道策略：
-  1. **MCP 增量上报**（主通道）：codex 专用 MCP server（`mcp_codex_finding_server.py`）
-     暴露 `report(file, summary, description, start_line, end_line, severity)` 工具，
-     finding 字段 `{file, start_line, end_line, severity, summary, description}`
-     （与 Claude 版 schema 不同）。
-  2. **JSONL 兜底**（辅通道）：`--json` 输出逐行 JSONL 事件流，解析
-     `item.completed` 的 `agent_message` 文本兜底，并从 `turn.completed.usage` 取 token 统计。
-     最终取两者中 finding **数量较多**的一方（平局优先 MCP），`review_output_source`
-     标记为 `mcp_stream` 或 `jsonl_fallback`。模型三件套与 MCP 配置全部写进临时
-     `$CODEX_HOME/config.toml`（方案 D），通过 `CODEX_HOME=<tmp>` 重定向加载。
+```bash
+python -m pipeline run --stage review --reviewer ocr \
+  --dataset data/aacr_bench_v2.jsonl --limit 2 --run-id v2-review
 
-### 执行评测（evaluate.py + judge.py）
+python -m pipeline run --stage eval --reviewer ocr \
+  --dataset data/aacr_bench_v2.jsonl --limit 2 --run-id v2-review
+```
 
-按 `instance_id` **精确定位**结果文件（`<safe_id>.json`），由本地 `judge.py` 做
-**文件级语义匹配**：按文件分组，每条生成评论打包同文件全部参考评论调用一次裁判模型
-判断覆盖关系（支持一对多）。
+两次命令应使用相同的数据文件及顺序、评审器、样本数和运行名称。新的评审实验使用新的名称；再次使用同一名称可能覆盖已有结果。建议名称以英文字母或数字开头和结尾，中间可使用点、下划线或连字符，例如 `v2-review`；评测时使用评审日志显示的运行目录名称。
 
-- 找不到结果文件的样本计入 `missing_instances`，**不计入指标分母**（避免把没跑的样本算成 0 召回）。
-- 默认输出文件级语义指标体系：**准确率**（`file_semantic_match_rate` = 命中了此前
-  未被覆盖 GT 的生成评论数 / 生成评论总数，重复命中不计）、**召回率**
-  （`file_semantic_recall_rate` = 被覆盖的 GT 数 / GT 总数，一对多下同一 GT 去重）与
-  **平衡分数**（`balanced_score`，即二者调和平均）。
-- metrics JSON 的 `eval_res[].generated_comments[]` 逐条记录每条生成评论命中了哪些 GT
-  （`matched_gt_indices` 指向同条目 `comments` 下标）、裁判理由（`judge_reason`）及是否
-  命中了未被覆盖的 GT（`hit_new_gt`，为 false 即重复命中，不计入准确率）。
-- 旧指标体系（path → side → line(k) → semantic 四阶段逐条匹配的语义/行号两套
-  Precision / Recall / F1）已弃用，仅在指定 `--use-deprecated-score` 时使用。
+### 并发与重复评测
 
-`note`（语义比对文本）映射：参考用 `text`，OCR 用 `content`，Claude 用
-`summary + failure_scenario`，Codex 用 `summary + description`（语义扩展为
-failure scenario + 建议修复）。Codex 的 `severity` 字段仅存档，不参与评测。
+评审命令可添加 `--concurrency 4`；实际并发数受所选仓库数限制，裁判并发由 `JUDGE_CONCURRENCY` 单独控制。
 
----
+需要再次评测已有结果时，可执行：
 
-## 接入新 benchmark（四步）
+```bash
+python -m pipeline run --stage eval --reviewer ocr \
+  --dataset data/aacr_bench_v2.jsonl \
+  --limit 2 --run-id v2-review --eval-rounds 1
+```
 
-**只需写一个转换器，框架其余部分零改动。** 约定 `benchmark_key` 用小写下划线（如 `aacr_bench`），
-它同时决定输出文件名 `data/<key>.jsonl`、结果目录 `results/<key>/`、指标目录 `metrics/<key>/`。
+每次命令使用已有评审结果。需要比较不同评测结果时，先保留上一次的指标文件。
 
-下面以已内置的 `converters/aacr_bench.py` 为实际范例：
+### 查看结果
 
-1. **准备原始数据**：在约定目录 `benchmark/<benchmark名>/`（如 `benchmark/AACR-Bench/v1/`）下提交
-   一份同名的 `*.meta.json`（字段：`url`、`sha256`，可选 `filename`、`description`）。
-   转换器据此**自动下载并校验**数据（参考 `aacr_bench.py` 的 `ensure_raw_file`）；数据文件本身被 gitignore，不提交。
-   `filename`（缺省取 meta 的 stem）允许数据文件名与 meta 文件名不同。
-2. **写转换器**：复制 `converters/aacr_bench.py` 改写，
-   核心是 `convert_record()` 把原始记录逐条转成 `ReviewInstance`。建议复用路径约定：
-   - 默认输入 `config.benchmark_raw_dir("<benchmark名>") / <原始文件名>`
-   - 默认输出 `config.dataset_path("<key>")`（即 `data/<key>.jsonl`）
+默认输出路径中的 `<dataset>` 是 JSONL 文件名去掉扩展名后的部分：
 
-   运行转换：`python -m converters.<key> --validate`
+| 位置 | 内容 |
+| --- | --- |
+| `results/<dataset>/<reviewer>/<run-name>/` | 单样本评审结果及 `summary_<reviewer>.json` |
+| `metrics/<dataset>/<reviewer>/<run-name>/` | 指标汇总和每条样本的匹配结果 |
 
-3. **跑流水线**：
-   `python -m pipeline run --stage all --reviewer <ocr|claude|codex> --dataset data/<key>.jsonl`
-4. **看指标**：结果在 `metrics/<key>/<reviewer>/<run_id>/metrics_<reviewer>_<时间戳>.json`，控制台也会打印汇总。
+先核对评审摘要中的样本数和状态，再解读指标；退出码 0 不代表所有样本成功。结果缺失、不可读取、JSON 无法解析或顶层不是对象时计入 `missing_instances` 并排除指标分母；可解析对象中的空意见仍参与评测，已保存的失败或非结构化输出也可能被视为零意见；应根据摘要状态和结果字段识别。裁判错误可能产生空匹配，应核对日志中的裁判模式和错误；模型用量和耗时汇总只统计评审阶段。
 
-> **内置转换器参考**：AACR-Bench 读**整个 JSON 数组**、需从 `githubPrUrl` 正则解析出 `owner/name`，
-> `instance_id` 按 `owner__name@<head前7位>` 生成。新 benchmark 按自身格式照搬即可。
+命令用法可通过 `python -m pipeline run --help` 和 `python -m converters.aacr_bench --help` 查看。
 
----
+## FAQ（常见问题）
 
-## 输出文件说明
+### 为什么 `missing_instances` 很大？
 
-> 路径中的 `<benchmark>` 取自 `--dataset` 文件名（如 `data/aacr_bench.jsonl` → `aacr_bench`）；
-> `<run_id>` 为本次 run 的目录名，缺省为时间戳，`--run-id` 指定时直接使用该名字。
-> 评审结果在 `results/` 下，评测指标在 `metrics/` 下，两者结构镜像对齐（同 run_id），
-> 产物分开存放但关联清晰。
+该字段统计未能加载对应结果的样本，包括文件缺失、无法读取、JSON 解析失败或顶层不是对象。先核对运行名称、数据文件、`--limit` 和评审摘要。已有结果但没有可解析意见的样本仍参与评测，不能仅用缺失数量判断评审是否成功。
 
-| 文件 | 内容 |
-| ---- | ---- |
-| `results/<benchmark>/<reviewer>/<run_id>/<safe_id>.json` | 单条样本的评审结果 |
-| `results/<benchmark>/<reviewer>/<run_id>/summary_<reviewer>.json` | 评审阶段每条样本的状态摘要 |
-| `metrics/<benchmark>/<reviewer>/<run_id>/metrics_<reviewer>_<时间戳>.json` | 评测指标（含 summary 与逐条匹配标记、`missing_instance_ids`） |
+### 为什么语义分数全为 0？
 
----
+先查看日志中的裁判模式，确认 `JUDGE_API_KEY`、`JUDGE_MODEL` 和服务地址配置。使用真实裁判时，也应检查模型调用错误及结构化评审意见是否成功保存。指标文件生成不表示所有裁判调用成功；本地模拟分数也不用于模型质量比较。
 
-## FAQ
+### 仓库克隆在哪里？会重复克隆吗？
 
-**Q：很多样本被整条跳过（missing_instances 很大）？**
-说明这些样本在结果目录里没有对应的 `<safe_id>.json`，即评审还没跑到它们。这与「模型没生成意见」
-不同——后者会有结果文件但 `review_output` 为空，仍会进入评测并拉低召回。
-
-**Q：评测时语义指标全是 0？**
-多半是 Judge 走了 Mock 模式（措辞差异大时本地相似度难命中）。配置 `evaluation/.env` 的
-`JUDGE_API_KEY` 并 `JUDGE_USE_MOCK=false` 后重跑即可走真实裁判模型（评测阶段会自动读取该文件）。
-
-**Q：仓库 clone 在哪？会重复 clone 吗？**
-clone 到 `evaluation/repo/<owner__name>`，同一仓库缓存复用、只 fetch 不重复 clone。
+默认缓存位置为 `repo/<owner__repo>/`，可通过 `--repo-dir` 修改。可用缓存会直接使用；缓存不可用或缺少所需提交时，程序可能重新下载快照或克隆仓库。

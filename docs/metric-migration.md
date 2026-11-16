@@ -135,5 +135,4 @@ empty `matched_gt_indices` and do not invoke the judge.
   system for historical baselines.
 - The complete field reference for the current metric system lives in
   [metrics.md](metrics.md).
-- Usage details: see the *Evaluation* section of
-  [../evaluation/README.md](../evaluation/README.md).
+- For usage details, see the [evaluation guide](../evaluation/README.md).
