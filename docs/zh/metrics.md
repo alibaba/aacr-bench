@@ -120,6 +120,13 @@ path → side → line(k) → semantic
 匹配为全局消耗式的一对一：每条生成评论在每个样本内最多贡献一次行号匹配
 和一次语义匹配。
 
+> **已知限制：左侧参考评论。** 自带的评审器（Claude、Codex、OCR）只评审新代码，
+> `evaluate.py` 会把每条生成评论的 `side` 设为 `"right"`。在 side 过滤下，
+> `dataset/positive_samples.json` 里 1,506 条参考评论中 `side: "left"` 的 8 条
+> 无法被这些评审器命中，但仍计入召回率分母。保留这些参考评论是为了评测会在旧代码一侧
+> 评论的评审器（[#9](https://github.com/alibaba/aacr-bench/issues/9)）。文件级指标
+> 不按 side 过滤，不受影响。
+
 ### 旧字段定义
 
 #### matched_semantic_notes（语义匹配评论数）
