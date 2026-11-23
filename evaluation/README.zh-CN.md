@@ -18,10 +18,12 @@ evaluation/
 │   └── codex.py               # Codex
 ├── mcp_finding_server.py       # 接收 Claude Code 上报的评审意见
 ├── mcp_codex_finding_server.py # 接收 Codex 上报的评审意见
+├── docker_runner.py           # 调度 Docker 评审任务并保存结果
 ├── hooks/
 │   └── on_stop_failure.py     # 记录 Claude Code 重试耗尽事件
 ├── converters/
 │   └── aacr_bench.py          # 将原始数据转换为 JSONL
+├── docker/                    # Docker 镜像构建与容器内运行入口
 ├── benchmark/AACR-Bench/
 │   ├── v1/                   # v1 原始数据缓存和下载信息
 │   └── v2/                   # v2 原始数据缓存和下载信息
@@ -47,6 +49,8 @@ evaluation/
 | 裁判评测 | 对照参考意见进行语义匹配，并计算指标 | 真实裁判模型；本地模拟模式不调用 |
 
 评审前优先使用本地仓库或压缩包缓存；缓存不可用时，先下载 Hugging Face 仓库快照，快照不可用时再从 GitHub 克隆对应仓库。缓存目录由程序管理，不应指向开发中的仓库或共享只读目录。
+
+`--docker` 只改变评审阶段，评测始终在宿主机执行。`--stage review` 只评审；`--stage eval` 在宿主机评测已有结果，不能与 `--docker` 同用；默认 `--stage all` 先评审，再在全部选中样本的评审任务结束后统一评测。Docker 模式要求全部评审任务成功才自动进入评测。
 
 默认按文件匹配生成意见与参考意见，计算精确率（Precision）、召回率（Recall）和平衡分数（Balanced Score）。生成意见至少匹配一条此前尚未匹配的参考意见，才计入精确率分子。定义见[指标说明](../docs/zh/metrics.md)，数据背景见[项目 README](../README.zh-CN.md)。
 
@@ -107,6 +111,7 @@ evaluation/
 
 | 可选变量 | 含义 |
 | --- | --- |
+| `OCR_VERSION`、`CLAUDE_CODE_VERSION`、`CODEX_VERSION` | Docker 镜像中的评审器版本；未设置或留空时使用 `latest`，修改后须重建镜像 |
 | `OCR_USE_ANTHROPIC` | `true` 使用 Anthropic 协议；`false` 使用 OpenAI 协议 |
 | `CLAUDE_CODE_MAX_RETRIES` | Claude Code 重试次数，默认 10 |
 | `CODEX_GATEWAY_URL` | 兼容 Codex 的模型网关地址 |
@@ -125,16 +130,17 @@ evaluation/
 | `--reviewer` | 必填 | `ocr`、`claude` 或 `codex` |
 | `--dataset` | 必填 | 转换后的 JSONL 文件 |
 | `--stage` | `all` | `all` 连续评审和评测；`review` 仅评审；`eval` 仅评测 |
+| `--docker` | 关闭 | 评审意见生成阶段改在 Docker 容器中执行，结果保存在宿主机；指标评测仍在宿主机完成；不可与 `--stage eval` 同时使用 |
 | `--run-id` | 评审时自动生成 | 运行名称；使用默认保存目录且只执行评测时，需要已有的运行名称 |
 | `--limit` | 全部 | 取 JSONL 前 N 条样本，使用正整数 |
-| `--concurrency` | `1` | 并发评审的仓库组数，同一仓库串行 |
+| `--concurrency` | `1` | 宿主模式为并发评审的仓库组数，同一仓库串行；`--docker` 模式为并发 PR 容器数 |
 | `--timeout-minutes` | `30` | 每条样本的评审超时，单位为分钟 |
 | `--eval-rounds` | `1` | 裁判评测轮数，使用正整数 |
-| `--repo-dir` | `repo/` | 程序管理的仓库缓存目录 |
+| `--repo-dir` | `repo/` | 宿主评审的仓库缓存目录，由程序管理；Docker 模式不使用该目录 |
 | `--results-dir` | 自动选择 | 评审结果和指标直接保存到指定目录，不按运行名称生成目录 |
-| `--ocr-command` | `ocr` | PATH 环境变量可找到的 OCR 命令名或二进制绝对路径 |
+| `--ocr-command` | `ocr` | PATH 环境变量可找到的 OCR 命令名或二进制绝对路径；Docker 模式中的路径必须在镜像内可用 |
 | `--max-tools` | `30` | 传给 OCR 的每文件工具调用限制；取值范围由 OCR 决定 |
-| `--preview` | 关闭 | 检查仓库与差异，不调用评审模型；配合 `--stage review` |
+| `--preview` | 关闭 | 检查仓库与差异，不调用评审模型；配合 `--stage review`。Docker 预览自动跳过评测 |
 | `--use-deprecated-score` | 关闭 | 使用旧逐条语义及行号评分 |
 | `--line-k` | `1` | 仅影响旧评分的行号容差 |
 
@@ -266,6 +272,10 @@ python -m pipeline run --stage eval --reviewer ocr \
 
 命令用法可通过 `python -m pipeline run --help` 和 `python -m converters.aacr_bench --help` 查看。
 
+### Docker 评审
+
+使用 `--docker` 在容器中生成评审意见，指标仍在宿主机计算。镜像构建、版本、资源限制与日志见 [Docker 指南](docker/README.zh-CN.md)。
+
 ## FAQ（常见问题）
 
 ### 为什么 `missing_instances` 很大？
@@ -278,4 +288,4 @@ python -m pipeline run --stage eval --reviewer ocr \
 
 ### 仓库克隆在哪里？会重复克隆吗？
 
-默认缓存位置为 `repo/<owner__repo>/`，可通过 `--repo-dir` 修改。可用缓存会直接使用；缓存不可用或缺少所需提交时，程序可能重新下载快照或克隆仓库。
+默认缓存位置为 `repo/<owner__repo>/`，可通过 `--repo-dir` 修改。可用缓存会直接使用；缓存不可用或缺少所需提交时，程序可能重新下载快照或克隆仓库。Docker 评审在每个容器内准备仓库，无需宿主缓存。

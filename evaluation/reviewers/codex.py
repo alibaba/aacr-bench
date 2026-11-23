@@ -5,8 +5,9 @@
 平局优先 MCP）。
 
 与 Claude 的关键差异：
-- 命令：`codex exec "..."`（review 必须在引号内）；用 `--sandbox workspace-write`，
-  不用已弃用的 `--full-auto`；不传 `--ask-for-approval`（不是 exec 的参数）；
+- 命令：`codex exec "..."`（review 必须在引号内）；宿主用 `--sandbox workspace-write`，
+  Docker 可通过 `CODEX_SANDBOX_MODE` 使用容器内 sandbox 值；不用已弃用的 `--full-auto`，
+  不传 `--ask-for-approval`（不是 exec 的参数）；
   不传 `--ignore-user-config`（实测会一起跳过 $CODEX_HOME/config.toml，
   导致 model_provider / MCP server 配置全部丢失，退回默认 openai provider）。
 - MCP 接入：模型三件套与 MCP server 全部写进临时 `config.toml`（$CODEX_HOME
@@ -250,11 +251,12 @@ def run_codex_review(
     """
     prompt = build_findings_prompt(base_commit, head_commit)
     review_target = f"{base_commit}...{head_commit}"
+    sandbox_mode = os.environ.get("CODEX_SANDBOX_MODE", "workspace-write")
 
     command = [
         "codex",
         "--sandbox",
-        "workspace-write",  # 不用已弃用的 --full-auto
+        sandbox_mode,  # Docker supplies danger-full-access inside the outer container.
         "exec",
         "review",
         "--json",  # JSONL 事件流（辅通道 + token）
