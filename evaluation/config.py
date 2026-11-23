@@ -197,6 +197,18 @@ HOOKS_DIR = EVALUATION_DIR / "hooks"
 STOP_FAILURE_HOOK_SCRIPT = HOOKS_DIR / "on_stop_failure.py"
 RETRY_EXHAUSTED_LOG = "retry_exhausted.jsonl"
 
+# ReportFindings hook 配置：拦截 /code-review 的原生 ReportFindings 工具调用
+REPORT_FINDINGS_HOOK_SCRIPT = HOOKS_DIR / "collect_report_findings.py"
+HOOK_FINDINGS_FILE_SUFFIX = ".hook.jsonl"
+# Sidecar state for the hook channel.  It records calls even when the model
+# reports an empty list or every item is filtered out, so "called empty" and
+# "not called" never share the same representation.
+HOOK_META_FILE_SUFFIX = ".hook.meta.json"
+
+# Per-review run identifier.  Hook records carry it so a stale file from an
+# aborted attempt can be ignored even if a custom harness forgot to reset it.
+REVIEW_RUN_ID_ENV_VAR = "REVIEW_RUN_ID"
+
 # Claude 评审用的 MCP findings server
 MCP_SERVER_SCRIPT = EVALUATION_DIR / "mcp_finding_server.py"
 MCP_SERVER_NAME = "findings"
@@ -249,6 +261,16 @@ def result_path(results_dir: Path, instance_id: str) -> Path:
 
 def partial_path(results_dir: Path, instance_id: str) -> Path:
     return Path(results_dir) / f"{safe_id(instance_id)}{PARTIAL_FILE_SUFFIX}"
+
+
+def hook_findings_path(results_dir: Path, instance_id: str) -> Path:
+    """ReportFindings hook 落盘路径：<results_dir>/<safe_id>.hook.jsonl（内容为 JSON 数组）。"""
+    return Path(results_dir) / f"{safe_id(instance_id)}{HOOK_FINDINGS_FILE_SUFFIX}"
+
+
+def hook_meta_path(results_dir: Path, instance_id: str) -> Path:
+    """ReportFindings hook sidecar state path."""
+    return Path(results_dir) / f"{safe_id(instance_id)}{HOOK_META_FILE_SUFFIX}"
 
 
 def retry_exhausted_path(results_dir: Path) -> Path:
