@@ -16,6 +16,7 @@ import json
 import os
 import re
 import shlex
+import stat
 import subprocess
 import sys
 import tempfile
@@ -111,27 +112,98 @@ def build_findings_system_prompt() -> str:
     )
 
 
-def prepare_instance_result_files(results_dir: Path, instance_id: str, run_id: str) -> None:
+def _is_regular_unshared_file(path: Path) -> bool:
+    """Return True for a regular file with exactly one hard link."""
+    try:
+        info = path.stat()
+    except OSError:
+        return False
+    return stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+
+
+def _reset_regular_file(path: Path, content: str) -> Optional[str]:
+    """Replace a result-adjacent file with a fresh regular file.
+
+    A symlink or hardlinked path is unlinked first so the reset never writes
+    through it; a directory or other non-regular path is reported as an error
+    instead of being modified.
+    """
+    if path.is_symlink() or (path.exists() and not _is_regular_unshared_file(path)):
+        try:
+            path.unlink()
+        except OSError as error:
+            return str(error)
+    try:
+        path.write_text(content, encoding="utf-8")
+    except OSError as error:
+        return str(error)
+    return None
+
+
+def _is_empty_partial_file(path: Path) -> bool:
+    """Return True when the MCP partial still exists and contains an empty list."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) == []
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return False
+
+
+def prepare_instance_result_files(results_dir: Path, instance_id: str, run_id: str) -> bool:
     """Reset per-instance collection files before a new review attempt.
 
     Custom harnesses sometimes call `run_claude_review` + `save_result` directly
     instead of `review_instance`.  They must call this helper first; otherwise a
-    `.hook.jsonl` left by an aborted attempt is appended to by the new run and
-    the reviewer silently mixes findings from two attempts.
+    `.collector/` findings file left by an aborted attempt is appended to by the
+    new run and the reviewer silently mixes findings from two attempts.
+
+    Returns True when a stale MCP partial file could not be removed or
+    neutralized.  The caller must then pass ``mcp_disabled=True`` to
+    ``save_result``: the MCP partial has no run id, so it cannot be
+    distinguished from the current attempt's output.
     """
     results_dir.mkdir(parents=True, exist_ok=True)
-    partial = config.partial_path(results_dir, instance_id).resolve()
-    if partial.exists():
+    partial = config.partial_path(results_dir, instance_id).absolute()
+    mcp_reset_failed = False
+    if partial.is_symlink() or partial.exists():
+        unlink_error = None
         try:
             partial.unlink()
+        except FileNotFoundError:
+            pass
         except OSError as error:
-            log(f"Warning: could not remove partial file {partial.name}: {error}")
-    hook_path = config.hook_findings_path(results_dir, instance_id).resolve()
-    meta_path = config.hook_meta_path(results_dir, instance_id).resolve()
+            unlink_error = error
+        if partial.is_symlink() or partial.exists():
+            # unlink may fail on permissions, or be a no-op in a harness that
+            # monkeypatches Path.unlink.  Truncating to [] neutralizes the
+            # stale content without following symlinks and still lets the MCP
+            # server append fresh findings.
+            if partial.is_symlink() or not _is_regular_unshared_file(partial):
+                mcp_reset_failed = True
+                log(
+                    f"Warning: stale MCP partial file {partial.name} is not a regular "
+                    "unshared file; MCP fallback disabled for this attempt"
+                )
+            else:
+                try:
+                    partial.write_text("[]", encoding="utf-8")
+                except OSError as error:
+                    unlink_error = unlink_error or error
+                if not _is_empty_partial_file(partial):
+                    mcp_reset_failed = True
+                    detail = f": {unlink_error}" if unlink_error else ""
+                    log(
+                        f"Warning: could not reset stale MCP partial file {partial.name}"
+                        f"{detail}; MCP fallback disabled for this attempt"
+                    )
+    hook_path = config.hook_findings_path(results_dir, instance_id).absolute()
+    meta_path = config.hook_meta_path(results_dir, instance_id).absolute()
     try:
-        hook_path.write_text("[]", encoding="utf-8")
+        hook_path.parent.mkdir(parents=True, exist_ok=True)
     except OSError as error:
-        log(f"Warning: could not reset hook findings {hook_path.name}: {error}")
+        log(f"Warning: could not create collector directory {hook_path.parent}: {error}")
+    hook_error = _reset_regular_file(hook_path, "[]")
+    if hook_error:
+        log(f"Warning: could not reset hook findings {hook_path.name}: {hook_error}")
     reset_meta = {
         "version": 1,
         "instance_id": instance_id,
@@ -140,10 +212,12 @@ def prepare_instance_result_files(results_dir: Path, instance_id: str, run_id: s
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "calls": [],
     }
-    try:
-        meta_path.write_text(json.dumps(reset_meta, ensure_ascii=False, indent=2), encoding="utf-8")
-    except OSError as error:
-        log(f"Warning: could not reset hook meta {meta_path.name}: {error}")
+    meta_error = _reset_regular_file(
+        meta_path, json.dumps(reset_meta, ensure_ascii=False, indent=2)
+    )
+    if meta_error:
+        log(f"Warning: could not reset hook meta {meta_path.name}: {meta_error}")
+    return mcp_reset_failed
 
 
 def build_hook_settings(
@@ -154,7 +228,7 @@ def build_hook_settings(
     StopFailure：Claude Code 内置 API retry 耗尽后触发，写入 retry_exhausted.jsonl。
 
     PostToolUse(ReportFindings)：`/code-review` 通过原生 ReportFindings 工具提交结果；
-    hook 把 tool_input.findings 落盘为 <safe_id>.hook.jsonl，作为优先于 MCP 与 stdout
+    hook 把 tool_input.findings 落盘为 .collector/<safe_id>.hook.jsonl，作为优先于 MCP 与 stdout
     的主通道。
 
     注意：Claude Code 2.1.x 不保证把 hook 级 `env` 传给子进程，因此 REVIEW_* 环境
@@ -173,6 +247,7 @@ def build_hook_settings(
         f"env {config.MCP_RESULTS_DIR_ENV_VAR}={shlex.quote(str(absolute_results_dir))} "
         f"{config.MCP_INSTANCE_ID_ENV_VAR}={shlex.quote(instance_id)} "
         f"{config.REVIEW_RUN_ID_ENV_VAR}={shlex.quote(run_id)} "
+        f"{config.COLLECTOR_DIR_ENV_VAR}={shlex.quote(config.COLLECTOR_DIR_NAME)} "
         f"{shlex.quote(sys.executable)} {shlex.quote(collect_script)}"
     )
     return {
@@ -310,8 +385,16 @@ def _as_int(value: Any) -> Optional[int]:
         return None
     if isinstance(value, int):
         return value if value > 0 else None
-    if isinstance(value, str) and value.strip().isdigit():
-        parsed = int(value.strip())
+    if isinstance(value, str):
+        text = value.strip()
+        # isdecimal() is false for characters such as "²" that isdigit()
+        # accepts but int() rejects; it stays true for Unicode decimal digits.
+        if not text.isdecimal():
+            return None
+        try:
+            parsed = int(text)
+        except ValueError:
+            return None
         return parsed if parsed > 0 else None
     return None
 
@@ -359,7 +442,8 @@ def parse_findings_from_result(result_text: str) -> Dict[str, Any]:
 
     Returns a dict with:
       findings: always a list
-      status: structured | structured_empty | empty | unstructured | non_list
+      status: structured | structured_empty | structured_all_filtered |
+              empty | unstructured | non_list
       raw_text: original text (used only when unstructured)
       structured: whether findings came from a JSON/list contract
     """
@@ -396,9 +480,15 @@ def parse_findings_from_result(result_text: str) -> Dict[str, Any]:
                 f"{len(valid)} valid finding(s)"
             )
         log(f"Fallback level 1: parsed {len(valid)} finding(s) directly from stdout JSON")
+        if not parsed:
+            status = "structured_empty"
+        elif valid:
+            status = "structured"
+        else:
+            status = "structured_all_filtered"
         return {
             "findings": valid,
-            "status": "structured" if valid else "structured_empty",
+            "status": status,
             "raw_text": result_text,
             "structured": True,
         }
@@ -416,17 +506,42 @@ def parse_findings_from_result(result_text: str) -> Dict[str, Any]:
 def extract_findings_from_result(result_text: str) -> Any:
     """Backward-compatible wrapper around parse_findings_from_result()."""
     parsed = parse_findings_from_result(result_text)
-    if parsed["status"] in {"structured", "structured_empty", "empty"}:
+    if parsed["status"] in {
+        "structured", "structured_empty", "structured_all_filtered", "empty",
+    }:
         return parsed["findings"]
     if parsed["status"] == "non_list":
         return parsed.get("parsed", [])
     return result_text
 
 
+def _as_nonnegative_int(value: Any) -> int:
+    """Best-effort count conversion for audit metadata; never raises."""
+    if isinstance(value, bool):
+        return 0
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
+def _hashable_line(value: Any) -> Any:
+    """Return a hashable dedupe key component for a raw line value.
+
+    Raw tool inputs are still unvalidated here; a model may emit a list or an
+    object for `line`.  Such a value cannot be a tuple member, so encode it
+    deterministically instead of letting deduplication raise TypeError.
+    """
+    if isinstance(value, (dict, list, set)):
+        return ("__json__", json.dumps(value, ensure_ascii=False, sort_keys=True, default=str))
+    return value
+
+
 def _finding_key(item: Dict[str, Any]) -> tuple:
+    line = item.get("line") if item.get("line") is not None else item.get("start_line")
     return (
         str(item.get("file") or item.get("path") or "").strip(),
-        item.get("line") if item.get("line") is not None else item.get("start_line"),
+        _hashable_line(line),
         str(item.get("summary") or "").strip().lower(),
         str(item.get("failure_scenario") or item.get("description") or "").strip().lower(),
     )
@@ -451,7 +566,7 @@ def _load_collector_errors(
     results_dir: Path, instance_id: str, run_id: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Read hook collector failures for this run (distinguish failure from no findings)."""
-    path = Path(results_dir) / "collector_errors.jsonl"
+    path = config.collector_errors_path(results_dir)
     if not path.exists():
         return []
     errors: List[Dict[str, Any]] = []
@@ -510,6 +625,8 @@ def _extract_token_usage(envelope: Dict[str, Any]) -> Dict[str, Any]:
     """
     # 兼容两种命名风格
     model_usage = envelope.get("model_usage") or envelope.get("modelUsage") or {}
+    if not isinstance(model_usage, dict):
+        model_usage = {}
 
     total_input = 0
     total_output = 0
@@ -519,10 +636,10 @@ def _extract_token_usage(envelope: Dict[str, Any]) -> Dict[str, Any]:
     for model_name, usage in model_usage.items():
         if not isinstance(usage, dict):
             continue
-        total_input += usage.get("inputTokens", 0) or 0
-        total_output += usage.get("outputTokens", 0) or 0
-        total_cache_read += usage.get("cacheReadInputTokens", 0) or 0
-        total_cache_creation += usage.get("cacheCreationInputTokens", 0) or 0
+        total_input += _as_nonnegative_int(usage.get("inputTokens", 0))
+        total_output += _as_nonnegative_int(usage.get("outputTokens", 0))
+        total_cache_read += _as_nonnegative_int(usage.get("cacheReadInputTokens", 0))
+        total_cache_creation += _as_nonnegative_int(usage.get("cacheCreationInputTokens", 0))
 
     return {
         "input_tokens": total_input,
@@ -594,6 +711,8 @@ def inspect_report_findings_tool_use(raw_stdout: str) -> Dict[str, Any]:
             continue
         if event.get("type") == "user":
             message = event.get("message") or {}
+            if not isinstance(message, dict):
+                continue
             content = message.get("content") or []
             if isinstance(content, list):
                 for block in content:
@@ -608,6 +727,8 @@ def inspect_report_findings_tool_use(raw_stdout: str) -> Dict[str, Any]:
         if event.get("type") != "assistant":
             continue
         message = event.get("message") or {}
+        if not isinstance(message, dict):
+            continue
         content = message.get("content") or []
         if not isinstance(content, list):
             continue
@@ -635,15 +756,24 @@ def inspect_report_findings_tool_use(raw_stdout: str) -> Dict[str, Any]:
             findings.extend(item for item in items if isinstance(item, dict))
 
     for call in calls:
-        call["is_error"] = results.get(str(call.get("tool_use_id")), False)
+        tool_use_id = str(call.get("tool_use_id"))
+        call["acknowledged"] = tool_use_id in results
+        call["is_error"] = results.get(tool_use_id, False)
 
-    failed_calls = [call for call in calls if call.get("is_error")]
-    successful_calls = [call for call in calls if not call.get("is_error")]
+    acknowledged_calls = [call for call in calls if call.get("acknowledged")]
+    unacknowledged_calls = [call for call in calls if not call.get("acknowledged")]
+    successful_calls = [
+        call for call in acknowledged_calls if not call.get("is_error")
+    ]
+    failed_calls = [call for call in acknowledged_calls if call.get("is_error")]
     successful_findings = [
         item for call in successful_calls for item in call.get("findings", [])
     ]
     failed_findings = [
         item for call in failed_calls for item in call.get("findings", [])
+    ]
+    unconfirmed_findings = [
+        item for call in unacknowledged_calls for item in call.get("findings", [])
     ]
     empty_calls = [
         call for call in successful_calls
@@ -651,22 +781,32 @@ def inspect_report_findings_tool_use(raw_stdout: str) -> Dict[str, Any]:
     ]
     if not calls:
         status = "not_called"
-    elif findings:
+    elif successful_findings:
         status = "called_with_findings"
     elif empty_calls:
         status = "called_empty"
     elif failed_calls:
         status = "called_failed"
+    elif unacknowledged_calls:
+        # No tool_result was observed (for example the process timed out after
+        # emitting tool_use).  Keep the input in the audit channels, but never
+        # count it as a successful report.
+        status = "called_unconfirmed"
     elif any(not call.get("payload_ok") for call in calls):
         status = "invalid_payload"
+    elif any(call.get("raw_count", 0) > 0 for call in calls):
+        status = "called_all_filtered"
     else:
         status = "called_empty"
     return {
         "findings": findings,
         "successful_findings": successful_findings,
         "failed_findings": failed_findings,
+        "unconfirmed_findings": unconfirmed_findings,
         "status": status,
         "calls": calls,
+        "acknowledged_calls": acknowledged_calls,
+        "unacknowledged_calls": unacknowledged_calls,
         "successful_calls": successful_calls,
         "empty_calls": empty_calls,
         "failed_calls": failed_calls,
@@ -703,12 +843,14 @@ def _detect_retry_exhausted(review_process: subprocess.CompletedProcess) -> Opti
             event = json.loads(line)
         except json.JSONDecodeError:
             continue
+        if not isinstance(event, dict):
+            continue
         if event.get("type") == "system" and event.get("subtype") == "api_retry":
             last_retry_event = event
 
     if last_retry_event:
-        attempt = last_retry_event.get("attempt", 0)
-        max_retries = last_retry_event.get("max_retries", 0)
+        attempt = _as_nonnegative_int(last_retry_event.get("attempt", 0))
+        max_retries = _as_nonnegative_int(last_retry_event.get("max_retries", 0))
         if attempt >= max_retries:
             retry_info = {
                 "detected_from": "stream_json",
@@ -746,7 +888,7 @@ def _check_and_log_retry_exhausted(result_path: Path, results_dir: Path) -> bool
     try:
         with result_path.open("r", encoding="utf-8") as handle:
             result_data = json.load(handle)
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return False
 
     retry_info = result_data.get("retry_exhausted")
@@ -772,14 +914,22 @@ def _check_and_log_retry_exhausted(result_path: Path, results_dir: Path) -> bool
 
 def load_streamed_state(results_dir: Path, instance_id: str) -> Dict[str, Any]:
     """Read the MCP partial file and report whether it was present or empty."""
-    path = config.partial_path(results_dir, instance_id).resolve()
+    path = config.partial_path(results_dir, instance_id).absolute()
+    if path.is_symlink() or (path.exists() and not _is_regular_unshared_file(path)):
+        log(f"Warning: partial file {path} is not a regular unshared file; refusing to read")
+        return {
+            "findings": [],
+            "status": "read_error",
+            "path": str(path),
+            "error": "partial file is not a regular unshared file",
+        }
     if not path.exists():
         log(f"No partial file at {path} — MCP tool not called or wrote elsewhere.")
         return {"findings": [], "status": "not_called", "path": str(path)}
     try:
         with path.open("r", encoding="utf-8") as handle:
             findings = json.load(handle)
-    except (json.JSONDecodeError, OSError) as error:
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as error:
         log(f"Warning: could not read streamed findings {path}: {error}")
         return {"findings": [], "status": "read_error", "path": str(path), "error": str(error)}
     if not isinstance(findings, list):
@@ -803,11 +953,10 @@ def _record_matches_run(record: Dict[str, Any], run_id: Optional[str], meta_run_
     record_run = record.get("run_id")
     if record_run:
         return record_run == run_id
-    # Legacy records have no run id.  If the meta file itself belongs to a
-    # different run, treat them as stale; otherwise keep backward compatibility.
-    if meta_run_id and meta_run_id != run_id:
-        return False
-    return True
+    # Untagged records predate run ids.  Trust them only when the meta file
+    # itself is untagged; a run-scoped meta with untagged records means the
+    # writer lost REVIEW_RUN_ID (or is stale) and must not leak into this run.
+    return meta_run_id is None
 
 
 def load_hook_state(
@@ -816,16 +965,20 @@ def load_hook_state(
     run_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Read hook findings plus the sidecar state that records empty/failed calls."""
-    path = config.hook_findings_path(results_dir, instance_id).resolve()
-    meta_path = config.hook_meta_path(results_dir, instance_id).resolve()
+    path = config.hook_findings_path(results_dir, instance_id).absolute()
+    meta_path = config.hook_meta_path(results_dir, instance_id).absolute()
     meta: Dict[str, Any] = {}
-    if meta_path.exists():
+    if meta_path.is_symlink() or (
+        meta_path.exists() and not _is_regular_unshared_file(meta_path)
+    ):
+        log(f"Warning: hook meta {meta_path} is not a regular unshared file; ignoring it")
+    elif meta_path.exists():
         try:
             with meta_path.open("r", encoding="utf-8") as handle:
                 loaded = json.load(handle)
             if isinstance(loaded, dict):
                 meta = loaded
-        except (json.JSONDecodeError, OSError) as error:
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as error:
             log(f"Warning: could not read hook meta {meta_path}: {error}")
     meta_run_id = meta.get("run_id") if isinstance(meta.get("run_id"), str) else None
     calls = [
@@ -835,7 +988,10 @@ def load_hook_state(
 
     findings: List[Dict[str, Any]] = []
     read_error: Optional[str] = None
-    if path.exists():
+    if path.is_symlink() or (path.exists() and not _is_regular_unshared_file(path)):
+        read_error = "hook findings file is not a regular unshared file"
+        log(f"Warning: {read_error}: {path}")
+    elif path.exists():
         try:
             with path.open("r", encoding="utf-8") as handle:
                 loaded_findings = json.load(handle)
@@ -844,7 +1000,7 @@ def load_hook_state(
                     item for item in loaded_findings
                     if isinstance(item, dict) and _record_matches_run(item, run_id, meta_run_id)
                 ]
-        except (json.JSONDecodeError, OSError) as error:
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as error:
             read_error = str(error)
             log(f"Warning: could not read hook findings {path}: {error}")
 
@@ -872,8 +1028,8 @@ def load_hook_state(
     else:
         status = "not_called"
 
-    raw_count = sum(int(call.get("raw_count") or 0) for call in calls)
-    normalized_count = sum(int(call.get("normalized_count") or 0) for call in calls)
+    raw_count = sum(_as_nonnegative_int(call.get("raw_count")) for call in calls)
+    normalized_count = sum(_as_nonnegative_int(call.get("normalized_count")) for call in calls)
     if findings:
         log(f"ReportFindings hook: {len(findings)} finding(s), status={status}")
     else:
@@ -904,6 +1060,7 @@ def save_result(
     started_at: str,
     duration_seconds: float,
     repo_path: Optional[Path] = None,
+    mcp_disabled: bool = False,
 ) -> Path:
     results_dir.mkdir(parents=True, exist_ok=True)
     out_path = config.result_path(results_dir, instance.instance_id)
@@ -940,8 +1097,9 @@ def save_result(
         if envelope is not None:
             log("stdout JSON is not an object; treating it as result text")
         stream_result, stream_meta = extract_from_stream_json(raw_stdout)
-        if stream_result:
-            result_text = stream_result
+        if stream_result or stream_meta:
+            if stream_result:
+                result_text = stream_result
             claude_meta = stream_meta
             log("stdout parsed as stream-json (line-delimited events)")
         else:
@@ -957,14 +1115,18 @@ def save_result(
     hook_findings = _normalize_paths(hook_state["findings"], repo_path)
     hook_findings = _dedupe_findings(hook_findings) if hook_findings else []
     hook_count = len(hook_findings)
-    hook_available = (
-        hook_state["status"] == "called_empty"
-        or (hook_state["status"] == "called_with_findings" and hook_count > 0)
-    )
     tool_state = inspect_report_findings_tool_use(raw_stdout)
     tool_use_findings = _normalize_paths(tool_state["findings"], repo_path)
     tool_use_findings = _dedupe_findings(tool_use_findings) if tool_use_findings else []
     tool_use_count = len(tool_use_findings)
+    tool_use_unconfirmed_findings = _normalize_paths(
+        tool_state.get("unconfirmed_findings", []), repo_path
+    )
+    tool_use_unconfirmed_findings = (
+        _dedupe_findings(tool_use_unconfirmed_findings)
+        if tool_use_unconfirmed_findings else []
+    )
+    tool_use_unconfirmed_count = len(tool_use_unconfirmed_findings)
     tool_use_successful_findings = [
         item
         for item in (
@@ -981,7 +1143,18 @@ def save_result(
         if tool_use_successful_findings else []
     )
     tool_use_successful_count = len(tool_use_successful_findings)
-    mcp_state = load_streamed_state(results_dir, instance.instance_id)
+    mcp_state = (
+        # A stale partial file cannot be distinguished from fresh MCP output,
+        # so disable the whole channel for this attempt rather than risk
+        # scoring old findings.
+        {
+            "findings": [],
+            "status": "reset_failed",
+            "path": str(config.partial_path(results_dir, instance.instance_id).resolve()),
+        }
+        if mcp_disabled
+        else load_streamed_state(results_dir, instance.instance_id)
+    )
     streamed_findings = _normalize_paths(mcp_state["findings"], repo_path)
     streamed_findings = _dedupe_findings(streamed_findings) if streamed_findings else []
     mcp_count = len(streamed_findings)
@@ -990,14 +1163,36 @@ def save_result(
     stdout_findings = _dedupe_findings(stdout_findings) if stdout_findings else []
     stdout_count = len(stdout_findings)
     stdout_is_structured = bool(stdout_state["structured"])
+    error_run_id = run_id
+    if error_run_id is None:
+        meta_run_id = hook_state.get("meta", {}).get("run_id")
+        if isinstance(meta_run_id, str) and meta_run_id:
+            error_run_id = meta_run_id
     collection_errors = _load_collector_errors(
-        results_dir, instance.instance_id, run_id
+        results_dir, instance.instance_id, error_run_id
     )
+    hook_available = (
+        hook_state["status"] == "called_empty"
+        or (hook_state["status"] == "called_with_findings" and hook_count > 0)
+    )
+    if (
+        hook_state["status"] == "called_empty"
+        and collection_errors
+        and any((tool_use_successful_count, mcp_count, stdout_count))
+    ):
+        # A collector error means a finding may never have reached the hook
+        # file; an otherwise confirmed empty report must not suppress a
+        # successfully received fallback finding.
+        hook_available = False
+        log(
+            "Result: hook is empty but collector errors exist and a fallback "
+            "channel has findings; hook empty state not treated as authoritative"
+        )
 
     log(
         f"Finding counts — hook: {hook_count} ({hook_state['status']}), "
         f"tool_use: {tool_use_count} ({tool_state['status']}; "
-        f"successful={tool_use_successful_count}), "
+        f"successful={tool_use_successful_count}, unconfirmed={tool_use_unconfirmed_count}), "
         f"MCP: {mcp_count} ({mcp_state['status']}), "
         f"stdout: {stdout_count} ({stdout_state['status']})"
     )
@@ -1029,16 +1224,21 @@ def save_result(
             f"Result: hook unavailable; using successful tool_use "
             f"({tool_use_successful_count} findings)"
         )
-    elif streamed_findings:
-        review_output = streamed_findings
-        review_output_source = "mcp_stream"
-        selection_reason = "hook_unavailable_mcp"
-        log(f"Result: hook unavailable; using MCP ({mcp_count} findings)")
-    elif stdout_findings:
-        review_output = stdout_findings
-        review_output_source = "stdout_fallback"
-        selection_reason = "hook_unavailable_stdout"
-        log(f"Result: hook unavailable; using stdout ({stdout_count} findings)")
+    elif streamed_findings or stdout_findings:
+        # Preserve the original fallback arbitration: when neither native
+        # channel is available, the longer list wins and MCP wins ties.  Hook
+        # and confirmed tool_use still take precedence over both.
+        if streamed_findings and mcp_count >= stdout_count:
+            review_output = streamed_findings
+            review_output_source = "mcp_stream"
+            selection_reason = "hook_unavailable_mcp"
+            reason = "more findings" if mcp_count > stdout_count else "tie, prefer MCP"
+            log(f"Result: using MCP ({mcp_count}) over stdout ({stdout_count}) — {reason}")
+        else:
+            review_output = stdout_findings
+            review_output_source = "stdout_fallback"
+            selection_reason = "hook_unavailable_stdout"
+            log(f"Result: using stdout ({stdout_count}) over MCP ({mcp_count}) — more findings")
     else:
         # No usable channel.  Keep review_output a list and record the actual
         # reason instead of letting raw prose flow into eval.
@@ -1048,34 +1248,53 @@ def save_result(
             review_output_source = "collection_error"
         elif tool_state["status"] == "called_failed":
             review_output_source = "report_findings_failed"
+        elif tool_state["status"] == "called_unconfirmed":
+            review_output_source = "report_findings_unconfirmed"
         elif (
-            tool_state["status"] == "called_all_filtered"
-            or tool_state["status"] == "invalid_payload"
+            hook_state["status"] == "called_all_filtered"
+            or tool_state["status"] in {"called_all_filtered", "invalid_payload"}
+            or (
+                tool_state["status"] == "called_with_findings"
+                and tool_use_successful_count == 0
+            )
         ):
             review_output_source = "report_findings_all_filtered"
+        elif tool_state["status"] == "called_empty":
+            review_output_source = "report_findings_tool_use_empty"
+            selection_reason = "tool_use_empty"
         elif collection_errors:
             review_output_source = "collection_error"
+        elif mcp_state["status"] == "reset_failed":
+            review_output_source = "mcp_reset_failed"
         elif stdout_state["status"] == "unstructured":
             review_output_source = "stdout_unstructured"
+        elif stdout_state["status"] == "structured_all_filtered":
+            review_output_source = "stdout_all_filtered"
         elif stdout_state["status"] in {"structured_empty", "empty"}:
             review_output_source = "stdout_empty"
         elif mcp_state["status"] == "empty":
             review_output_source = "mcp_empty"
         else:
             review_output_source = "not_called"
+        if review_output_source == "collection_error":
+            selection_reason = "collection_error"
         log(f"Result: no non-empty structured channel — source={review_output_source}")
 
     # 检测是否因 API retry 耗尽而失败（从 stderr 和 stream-json 事件中识别）
     retry_exhausted = _detect_retry_exhausted(review_process)
-    if collection_errors and not any((hook_count, tool_use_count, mcp_count, stdout_count)):
+    scorable_counts = (hook_count, tool_use_successful_count, mcp_count, stdout_count)
+    if collection_errors and not any(scorable_counts):
         log(f"Collection errors recorded for this instance: {len(collection_errors)}")
 
     if (
         collection_errors
-        and not any((hook_count, tool_use_count, mcp_count, stdout_count))
+        and not any(scorable_counts)
+        and not hook_available
+        and tool_state["status"] != "called_empty"
         and review_output_source != "collection_error"
     ):
         review_output_source = "collection_error"
+        selection_reason = "collection_error"
         log("Result: no findings captured and collector errors exist — marking collection_error")
 
     safe_id = config.safe_id(instance.instance_id)
@@ -1103,6 +1322,7 @@ def save_result(
         "selection_reason": selection_reason,
         "hook_available": hook_available,
         "tool_use_successful_count": tool_use_successful_count,
+        "tool_use_unconfirmed_count": tool_use_unconfirmed_count,
         # 保留所有通道的原始捕获，便于事后审计/重新合并；评分仍以 review_output 为准。
         "channel_outputs": {
             "report_findings": hook_findings,
@@ -1127,10 +1347,13 @@ def save_result(
             "report_findings_tool_use": {
                 "raw_count": tool_state["raw_count"],
                 "calls": tool_state["calls"][-20:],
+                "acknowledged_calls": len(tool_state["acknowledged_calls"]),
+                "unacknowledged_calls": len(tool_state["unacknowledged_calls"]),
                 "successful_calls": len(tool_state["successful_calls"]),
                 "empty_calls": len(tool_state["empty_calls"]),
                 "failed_calls": len(tool_state["failed_calls"]),
                 "successful_count": tool_use_successful_count,
+                "unconfirmed_count": tool_use_unconfirmed_count,
             },
             "mcp_stream": {"path": mcp_state.get("path"), "status": mcp_state["status"]},
             "stdout": {"status": stdout_state["status"], "structured": stdout_is_structured},
@@ -1139,6 +1362,7 @@ def save_result(
             "report_findings": hook_count,
             "report_findings_tool_use": tool_use_count,
             "report_findings_tool_use_successful": tool_use_successful_count,
+            "report_findings_tool_use_unconfirmed": tool_use_unconfirmed_count,
             "mcp_stream": mcp_count,
             "stdout": stdout_count,
             "stdout_structured": stdout_is_structured,
@@ -1156,8 +1380,8 @@ def save_result(
         json.dump(payload, handle, ensure_ascii=False, indent=2)
 
     # partial 已折叠进最终结果，删除以免下次运行残留
-    partial = config.partial_path(results_dir, instance.instance_id).resolve()
-    if partial.exists():
+    partial = config.partial_path(results_dir, instance.instance_id).absolute()
+    if partial.exists() or partial.is_symlink():
         try:
             partial.unlink()
         except OSError as error:
@@ -1196,7 +1420,7 @@ def review_instance(
     # run_id；即使自定义 harness 忘了调用本函数，save_result 也会按 run_id
     # 过滤掉旧记录。
     run_id = f"{config.safe_id(instance.instance_id)}-{uuid.uuid4().hex[:12]}"
-    prepare_instance_result_files(results_dir, instance.instance_id, run_id)
+    mcp_reset_failed = prepare_instance_result_files(results_dir, instance.instance_id, run_id)
 
     started_at = datetime.now(timezone.utc).isoformat()
     start_time = time.monotonic()
@@ -1219,6 +1443,7 @@ def review_instance(
         started_at=started_at,
         duration_seconds=duration_seconds,
         repo_path=repo_path,
+        mcp_disabled=mcp_reset_failed,
     )
 
     # 丢弃 Claude 在仓库里留下的临时文件，保持工作区干净

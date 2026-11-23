@@ -19,7 +19,8 @@ evaluation/
 ├── mcp_finding_server.py       # 接收 Claude Code 上报的评审意见
 ├── mcp_codex_finding_server.py # 接收 Codex 上报的评审意见
 ├── hooks/
-│   └── on_stop_failure.py     # 记录 Claude Code 重试耗尽事件
+│   ├── on_stop_failure.py     # 记录 Claude Code 重试耗尽事件
+│   └── collect_report_findings.py # 持久化 ReportFindings 工具调用
 ├── converters/
 │   └── aacr_bench.py          # 将原始数据转换为 JSONL
 ├── benchmark/AACR-Bench/

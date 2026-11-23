@@ -3,14 +3,17 @@
 
 Claude Code's bundled `/code-review` skill submits results through the native
 `ReportFindings` tool. This hook receives that tool call and merges its findings
-into `<REVIEW_RESULTS_DIR>/<safe_instance_id>.hook.jsonl` (a JSON array), which
-the reviewer folds into the per-sample result the same way the MCP partial file
-is folded.
+into `<REVIEW_RESULTS_DIR>/.collector/<safe_instance_id>.hook.jsonl` (a JSON
+array), which the reviewer folds into the per-sample result the same way the MCP
+partial file is folded.  Collector files live in `.collector/` so their names
+can never collide with a final `<safe_instance_id>.json` result.
 
 Design notes:
 - Never prints to stdout: hook stdout can be injected into the model context.
 - Always exits 0: a collector failure must not abort the review.
-- Deduplicates by (file, line, summary, failure_scenario).
+- Deduplicates by (file, line, summary, failure_scenario) within the current
+  run.  Records from earlier runs are retained for audit but ignored when the
+  reader selects by run id.
 - Uses an exclusive lock plus atomic replace so concurrent subagent calls cannot
   lose findings.
 - Writes a sidecar `<safe_instance_id>.hook.meta.json` for every recognized
@@ -37,6 +40,12 @@ INSTANCE_ID_ENV = "REVIEW_INSTANCE_ID"
 RUN_ID_ENV = "REVIEW_RUN_ID"
 TARGET_TOOL = "ReportFindings"
 META_VERSION = 1
+# Keep in sync with config.COLLECTOR_DIR_NAME.  The hook runs as a standalone
+# script and must not depend on importing the evaluation package.
+COLLECTOR_DIR_NAME = ".collector"
+COLLECTOR_DIR_ENV = "REVIEW_COLLECTOR_DIR"
+# Keep in sync with config.COLLECTOR_ERRORS_LOG.
+COLLECTOR_ERRORS_LOG = "collector_errors.jsonl"
 
 
 def _safe_id(instance_id: str) -> str:
@@ -48,7 +57,10 @@ def _resolve_paths() -> Optional[Tuple[Path, Path]]:
     instance_id = os.environ.get(INSTANCE_ID_ENV)
     if not results_dir or not instance_id or not instance_id.strip():
         return None
-    directory = Path(results_dir)
+    dir_name = os.environ.get(COLLECTOR_DIR_ENV) or COLLECTOR_DIR_NAME
+    if not dir_name or "/" in dir_name or dir_name in (".", ".."):
+        return None
+    directory = Path(results_dir) / dir_name
     try:
         directory.mkdir(parents=True, exist_ok=True)
     except OSError:
@@ -62,8 +74,16 @@ def _normalize_line(value: Any) -> Optional[int]:
         return None
     if isinstance(value, int):
         return value if value > 0 else None
-    if isinstance(value, str) and value.strip().isdigit():
-        parsed = int(value.strip())
+    if isinstance(value, str):
+        text = value.strip()
+        # isdecimal() is false for characters such as "²" that isdigit()
+        # accepts but int() rejects; it stays true for Unicode decimal digits.
+        if not text.isdecimal():
+            return None
+        try:
+            parsed = int(text)
+        except ValueError:
+            return None
         return parsed if parsed > 0 else None
     return None
 
@@ -137,7 +157,10 @@ def _load_meta(path: Path) -> Dict[str, Any]:
     calls = data.get("calls")
     if not isinstance(calls, list):
         calls = []
-    return {"version": META_VERSION, "calls": calls}
+    meta = dict(data)
+    meta["version"] = META_VERSION
+    meta["calls"] = calls
+    return meta
 
 
 def _atomic_write_json(path: Path, payload: Any) -> None:
@@ -153,15 +176,15 @@ def _atomic_write_json(path: Path, payload: Any) -> None:
     os.replace(handle.name, path)
 
 
-def _append_error(results_dir: Path, message: str) -> None:
+def _append_error(collector_dir: Path, message: str, run_id: Optional[str] = None) -> None:
     try:
         entry = {
             "at": datetime.now(timezone.utc).isoformat(),
             "instance_id": os.environ.get(INSTANCE_ID_ENV),
-            "run_id": os.environ.get(RUN_ID_ENV),
+            "run_id": run_id if run_id is not None else os.environ.get(RUN_ID_ENV),
             "error": message[:500],
         }
-        with (results_dir / "collector_errors.jsonl").open("a", encoding="utf-8") as handle:
+        with (collector_dir / COLLECTOR_ERRORS_LOG).open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except OSError:
         pass
@@ -189,7 +212,9 @@ def _run() -> int:
     if paths is None:
         return 0
     path, meta_path = paths
-    results_dir = path.parent
+    collector_dir = path.parent
+
+    run_id = os.environ.get(RUN_ID_ENV) or ""
 
     tool_input = event.get("tool_input")
     findings_raw: Any = None
@@ -206,7 +231,10 @@ def _run() -> int:
     dropped: List[Dict[str, Any]] = []
     if isinstance(findings_raw, list):
         for index, item in enumerate(findings_raw):
-            finding, reason = _normalize_finding_with_reason(item)
+            try:
+                finding, reason = _normalize_finding_with_reason(item)
+            except Exception as error:  # a bad item must not drop its siblings
+                finding, reason = None, f"normalization_error:{type(error).__name__}"
             if finding is None:
                 dropped.append({"index": index, "reason": reason})
             else:
@@ -227,7 +255,7 @@ def _run() -> int:
         "tool_use_id": event.get("tool_use_id"),
         "agent_id": event.get("agent_id"),
         "captured_at": datetime.now(timezone.utc).isoformat(),
-        "run_id": os.environ.get(RUN_ID_ENV),
+        "run_id": run_id or None,
         "payload_source": payload_source,
         "raw_count": len(findings_raw) if isinstance(findings_raw, list) else 0,
         "normalized_count": len(normalized),
@@ -245,12 +273,22 @@ def _run() -> int:
                     break
                 except BlockingIOError:
                     if time.monotonic() >= deadline:
-                        _append_error(results_dir, "hook lock timeout (2s), finding skipped")
+                        _append_error(collector_dir, "hook lock timeout (2s), finding skipped", run_id)
                         return 0
                     time.sleep(0.02)
             if normalized:
                 existing = _load_existing(path)
-                seen = {_finding_key(item) for item in existing if isinstance(item, dict)}
+                # Dedupe only against the current run.  Older records stay in
+                # the file for audit, but they must not suppress a finding this
+                # run reports again.  Keeping them also means a late hook from
+                # another run can append without clobbering this run's records.
+                if run_id:
+                    seen = {
+                        _finding_key(item) for item in existing
+                        if isinstance(item, dict) and item.get("run_id") == run_id
+                    }
+                else:
+                    seen = {_finding_key(item) for item in existing if isinstance(item, dict)}
                 for finding in normalized:
                     if _finding_key(finding) in seen:
                         continue
@@ -265,13 +303,14 @@ def _run() -> int:
             meta = _load_meta(meta_path)
             meta["version"] = META_VERSION
             meta["instance_id"] = os.environ.get(INSTANCE_ID_ENV)
-            meta["run_id"] = os.environ.get(RUN_ID_ENV)
+            if run_id:
+                meta["run_id"] = run_id
             meta["updated_at"] = call_record["captured_at"]
             meta["calls"].append(call_record)
             _atomic_write_json(meta_path, meta)
             fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
     except OSError as error:
-        _append_error(results_dir, f"hook write failed: {error}")
+        _append_error(collector_dir, f"hook write failed: {error}", run_id)
     return 0
 
 
