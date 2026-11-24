@@ -19,7 +19,8 @@ evaluation/
 ├── mcp_finding_server.py       # Receive Claude Code review comments
 ├── mcp_codex_finding_server.py # Receive Codex review comments
 ├── hooks/
-│   └── on_stop_failure.py     # Record exhausted Claude Code retries
+│   ├── on_stop_failure.py     # Record exhausted Claude Code retries
+│   └── collect_report_findings.py # Persist native ReportFindings calls
 ├── converters/
 │   └── aacr_bench.py          # Convert raw data to JSONL
 ├── benchmark/AACR-Bench/
