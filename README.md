@@ -127,6 +127,7 @@ Scores measure matches against the released references; an unmatched comment may
 ## Documentation
 
 - [Evaluation guide](evaluation/README.md) — installation, model configuration, command options, and result directories.
+- [Docker review guide](evaluation/docker/README.md) — image builds, reviewer versions, containerized review, and host evaluation.
 - [Metrics](docs/metrics.md) — matching, scoring, and audit fields.
 - [Alibaba-Aone/aacr-bench](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench) — Hugging Face comment-level dataset.
 - [Alibaba-Aone/aacr-bench-repos](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench-repos) — source repository snapshots on Hugging Face.

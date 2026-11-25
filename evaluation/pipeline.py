@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import config
+import docker_runner
 import evaluate
 from repo_utils import (
     RepoError,
@@ -338,7 +339,8 @@ def _print_average_summary(
 
 
 def run_pipeline(args) -> int:
-    """根据 CLI 参数编排各阶段。"""
+    """Run the selected review backend, then evaluate on the host."""
+    use_docker = bool(getattr(args, "docker", False))
     instances = load_instances(args.dataset, args.limit)
     log(f"Loaded {len(instances)} instance(s) from {args.dataset}")
     if not instances:
@@ -346,49 +348,55 @@ def run_pipeline(args) -> int:
         return 0
 
     if args.stage in ("all", "review"):
-        os.environ.setdefault("GIT_LFS_SKIP_SMUDGE", "1")
-        archive_dir = config.default_snapshot_archive_dir(args.repo_dir)
-        preparer = RepoPreparer(
-            repo_dir=args.repo_dir,
-            archive_dir=archive_dir,
-            dataset_path=args.dataset,
-        )
-        set_active_repo_preparer(preparer)
-        try:
-            run_review_stage(
-                instances=instances,
-                reviewer=args.reviewer,
-                repo_dir=args.repo_dir,
-                results_dir=args.results_dir,
-                timeout_minutes=args.timeout_minutes,
-                preview=args.preview,
-                concurrency=args.concurrency,
-                ocr_command=args.ocr_command,
-                max_tools=args.max_tools,
-            )
-        finally:
-            clear_active_repo_preparer()
+        if use_docker:
+            args.run_id = config.make_run_id(args.run_id)
+            docker_config = docker_runner.DockerReviewConfig.from_args(args)
+            review_code = docker_runner.run_review_stage(instances, args.results_dir, docker_config)
+            if review_code != 0:
+                log("Docker review did not complete; automatic evaluation skipped.")
+                return review_code
+        else:
+            os.environ.setdefault("GIT_LFS_SKIP_SMUDGE", "1")
+            archive_dir = config.default_snapshot_archive_dir(args.repo_dir)
+            preparer = RepoPreparer(repo_dir=args.repo_dir, archive_dir=archive_dir, dataset_path=args.dataset)
+            set_active_repo_preparer(preparer)
+            try:
+                run_review_stage(
+                    instances=instances, reviewer=args.reviewer, repo_dir=args.repo_dir,
+                    results_dir=args.results_dir, timeout_minutes=args.timeout_minutes,
+                    preview=args.preview, concurrency=args.concurrency,
+                    ocr_command=args.ocr_command, max_tools=args.max_tools,
+                )
+            finally:
+                clear_active_repo_preparer()
 
-    if args.stage in ("all", "eval"):
+    preview = args.preview
+    if args.stage in ("all", "eval") and not (use_docker and preview):
         run_eval_stage(
-            instances=instances,
-            reviewer=args.reviewer,
-            results_dir=args.results_dir,
-            metrics_dir=args.metrics_dir,
-            line_k=args.line_k,
-            limit_for_eval=None,
-            eval_rounds=args.eval_rounds,
-            use_deprecated_score=args.use_deprecated_score,
+            instances=instances, reviewer=args.reviewer, results_dir=args.results_dir,
+            metrics_dir=args.metrics_dir, line_k=args.line_k, limit_for_eval=None,
+            eval_rounds=args.eval_rounds, use_deprecated_score=args.use_deprecated_score,
         )
-
-    if args.stage == "eval":
-        evaluate.print_llm_request_statistics()
-
+        if args.stage == "eval":
+            evaluate.print_llm_request_statistics()
+    elif use_docker and preview:
+        log("Preview: evaluation skipped.")
     return 0
 
 
 def _path_arg(value: str) -> Path:
     return Path(value)
+
+
+def _add_docker_options(parser: argparse.ArgumentParser) -> None:
+    """Add the small public Docker surface; internal/test flags stay hidden."""
+    parser.add_argument("--cpus", type=float, default=1.0, help="CPU limit per container")
+    parser.add_argument("--memory", default="2g", help="Memory limit per container; combined budget <= 50%% of daemon memory")
+    parser.add_argument(
+        "--image",
+        default=os.environ.get("AACR_DOCKER_IMAGE", "aacr-review:latest"),
+        help="Review container image (default $AACR_DOCKER_IMAGE or aacr-review:latest)",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -484,6 +492,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="预览模式：只 clone/checkout，不真正调用评审 LLM",
     )
+
+    run_parser.add_argument(
+        "--docker",
+        action="store_true",
+        help="Run review in Docker; evaluation stays on the host; not valid with --stage eval",
+    )
+    _add_docker_options(run_parser)
     return parser
 
 
@@ -507,6 +522,8 @@ def apply_defaults(args: argparse.Namespace) -> None:
 
     if args.results_dir is None:
         run_id, run_path = _resolve_run_dir(args, benchmark_name)
+        if getattr(args, "docker", False):
+            args.run_id = run_id
         args.results_dir = run_path
         args.metrics_dir = config.metrics_run_dir(benchmark_name, args.reviewer, run_id)
     else:
@@ -548,8 +565,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "run":
-        apply_defaults(args)
-        return run_pipeline(args)
+        if getattr(args, "docker", False) and args.stage == "eval":
+            parser.error(
+                "--docker only applies to review; use --stage review or --stage all "
+                "and run evaluation on the host"
+            )
+        try:
+            apply_defaults(args)
+            return run_pipeline(args)
+        except docker_runner.DockerError as error:
+            print(f"docker review error: {error}", file=sys.stderr)
+            return 1
 
     parser.print_help()
     return 1
