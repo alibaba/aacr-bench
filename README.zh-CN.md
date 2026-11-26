@@ -127,6 +127,7 @@ python -m pipeline run --reviewer ocr \
 ## 文档
 
 - [评测指南](evaluation/README.zh-CN.md)：安装、模型配置、命令参数与结果保存目录。
+- [Docker 评审指南](evaluation/docker/README.zh-CN.md)：镜像构建、评审器版本、容器内评审与宿主机评测。
 - [指标说明](docs/zh/metrics.md)：匹配、评分和审计字段。
 - [Alibaba-Aone/aacr-bench](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench)：Hugging Face 评论级数据集。
 - [Alibaba-Aone/aacr-bench-repos](https://huggingface.co/datasets/Alibaba-Aone/aacr-bench-repos)：Hugging Face 来源仓库快照。
