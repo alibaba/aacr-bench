@@ -75,24 +75,40 @@ python -m pipeline run --docker --reviewer ocr \
   --dataset data/aacr_bench_v2.jsonl --limit 2 --run-id docker-baseline
 ```
 
-The default `--stage all` waits for every review task to finish before evaluating the selected samples, including those whose reviews failed. Cancellation or a fatal runner error stops the pipeline. Docker `--preview` skips evaluation.
+The default `--stage all` waits for every review task to finish and then evaluates the selected samples on the host. A failed review still keeps any findings produced before the failure, and those findings are included in evaluation. Cancellation or a fatal runner error stops the pipeline. Docker `--preview` skips evaluation.
 
-To evaluate saved results, leave out `--docker`:
+To retry only the failed samples in an existing run, add `--retry` and keep the same `--run-id`:
+
+```bash
+python -m pipeline run --docker --stage review --reviewer ocr \
+  --dataset data/aacr_bench_v2.jsonl --limit 2 --run-id docker-review --retry
+```
+
+Use the same dataset and `--limit` as the original run. `--retry` requires an existing run directory, `--run-id`, and a readable `summary_<reviewer>.json`. It archives the failed samples' result JSON (and any MCP `.partial.json`) plus `docker-logs/instances/<attempt>/` directories under `retry-archive/<timestamp>/`, then reruns only the failed samples. Successful results remain unchanged. If archiving fails, the command stops before rerunning. With `--stage all` or `--stage eval`, evaluation continues after the retry only when every selected sample has succeeded; if failures remain, the command exits non-zero and does not evaluate. Repeat `--retry` after fixing the remaining failures. `--docker --stage eval --retry` is allowed for this workflow; plain `--docker --stage eval` is still invalid.
+
+During review, each completed sample prints a line with the local time, sample ID, status, collected finding count, duration, and overall progress:
+
+```text
+[14:32:10] [docker] [37/151] owner__repo@abc123 ok findings=6 duration=412.8s
+```
+
+To evaluate saved results without retrying, leave out `--docker`:
 
 ```bash
 python -m pipeline run --stage eval --reviewer ocr \
   --dataset data/aacr_bench_v2.jsonl --limit 2 --run-id docker-review
 ```
 
-`--docker` cannot be combined with `--stage eval`. Use the same dataset, reviewer, run ID and sample limit for review and evaluation. `--limit` takes the first N JSONL rows; `--eval-rounds`, `--line-k` and `--use-deprecated-score` keep their evaluation meanings.
+`--docker` cannot be combined with `--stage eval` unless `--retry` is also set. Review and evaluation should use the same dataset, reviewer, run ID, and sample limit. `--limit` takes the first N JSONL rows; `--eval-rounds`, `--line-k` and `--use-deprecated-score` keep their evaluation meanings.
 
-Reusing a Docker run ID prints a warning, then reviews every selected PR again, including those that succeeded earlier. The selected results are overwritten; unselected files remain in place. Check the dataset and run ID before reusing a directory, and do not send concurrent jobs to the same result directory.
+Reusing a run ID without `--retry` prints a warning, then reviews every selected PR again, including those that succeeded earlier, and overwrites the selected results. Unselected files remain in place. Check the dataset and run ID before reusing a directory, and do not send concurrent jobs to the same result directory.
 
 ## Options and Outputs
 
 | Option | Default and behavior |
 | --- | --- |
 | `--image` | `aacr-review:latest`, or `AACR_DOCKER_IMAGE`. The resolved image is recorded in the run logs. |
+| `--retry` | Off. Archive and rerun only failed samples from an existing `--run-id`; keep successful results. |
 | `--concurrency` | 1 PR container at a time. |
 | `--cpus` / `--memory` | 1 CPU / 2g per container. The sum of concurrent containers' memory limits must not exceed 50% of the Docker daemon's memory. |
 | `--timeout-minutes` | Reviewer timeout defaults to 30 minutes. The container's overall timeout allows extra time for repository preparation, review completion and cleanup, and is at least two hours. |
@@ -110,6 +126,8 @@ metrics/<dataset>/<reviewer>/<run-id>/
 ```
 
 The results directory contains per-PR JSON files, `summary_<reviewer>.json` and `docker_run.json`. Logs, container IDs and run metadata are in its `docker-logs/` subdirectory. When using `--results-dir`, logs are saved to `<results-dir>/docker-logs/`.
+
+A failed review can still produce partial findings. The runner copies the container's `failed-results/<sample>.json` to the canonical result file, marks it with `review_status: failed` (and `review_error` when available), and keeps those findings for evaluation. If only the MCP `.partial.json` exists for Claude Code or Codex, the runner builds the result from that list. Malformed finding entries are dropped so they cannot break evaluation. Failed attempts that produced no result are written with empty findings. `--retry` archives failed result files, partial files and attempt directories under `retry-archive/<timestamp>/` before rerunning them.
 
 Claude stream and stderr logs, along with available `.collector` hook files, are retained on success and failure under `docker-logs/instances/<attempt>/out/diagnostics/`. Paths in the result JSON refer to these retained files. Missing or rejected diagnostics are reported separately and do not replace the original review error.
 

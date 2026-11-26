@@ -28,7 +28,7 @@ import config
 from repo_utils import log
 from schema import ReviewInstance, load_instances
 from reviewer_versions import VERSION_KEYS, REVIEWER_VERSION_KEYS, resolve_versions
-from docker_contract import read_json, validate_identity, validate_result, write_result, redact_payload
+from docker_contract import read_json, read_json_value, validate_identity, validate_result, write_result, redact_payload
 
 DEFAULT_IMAGE = os.environ.get("AACR_DOCKER_IMAGE", "aacr-review:latest")
 DOCKER_COMMAND = ["docker"]
@@ -481,6 +481,168 @@ def _copy_results(out_dir: Path, run_dir: Path, instance: ReviewInstance,
     return 1
 
 
+def _finding_count(payload: Any, reviewer: str) -> int:
+    if not isinstance(payload, dict):
+        return 0
+    if reviewer == "ocr":
+        review = payload.get("review")
+        comments = review.get("comments") if isinstance(review, dict) else None
+    else:
+        comments = payload.get("review_output")
+    return len(comments) if isinstance(comments, list) else 0
+
+
+def _optional_int(value: Any) -> bool:
+    return value is None or (isinstance(value, int) and not isinstance(value, bool))
+
+
+def _optional_text(value: Any) -> bool:
+    return value is None or isinstance(value, str)
+
+
+def _valid_ocr_partial(comment: Any) -> bool:
+    return (
+        isinstance(comment, dict)
+        and isinstance(comment.get("path", ""), str)
+        and _optional_text(comment.get("content"))
+        and _optional_int(comment.get("start_line"))
+        and _optional_int(comment.get("end_line"))
+    )
+
+
+def _valid_text_partial(comment: Any, reviewer: str) -> bool:
+    if not isinstance(comment, dict) or not isinstance(comment.get("file", ""), str):
+        return False
+    if reviewer == "claude":
+        return (
+            _optional_text(comment.get("summary"))
+            and _optional_text(comment.get("failure_scenario"))
+            and _optional_int(comment.get("line"))
+        )
+    return (
+        _optional_text(comment.get("summary"))
+        and _optional_text(comment.get("description"))
+        and _optional_int(comment.get("start_line"))
+        and _optional_int(comment.get("end_line"))
+    )
+
+
+def _sanitize_partial_payload(payload: dict, reviewer: str) -> None:
+    """Keep only findings that the host evaluation builders can safely read."""
+    duration = payload.get("duration_seconds")
+    if isinstance(duration, bool) or not isinstance(duration, (int, float)):
+        payload["duration_seconds"] = 0
+    if reviewer == "ocr":
+        review = payload.get("review")
+        if not isinstance(review, dict):
+            review = {}
+            payload["review"] = review
+        comments = review.get("comments")
+        if isinstance(comments, list):
+            review["comments"] = [item for item in comments if _valid_ocr_partial(item)]
+        else:
+            review["comments"] = []
+        summary = review.get("summary")
+        if not isinstance(summary, dict):
+            summary = {}
+            review["summary"] = summary
+        for key in ("input_tokens", "output_tokens"):
+            if isinstance(summary.get(key), bool) or not isinstance(summary.get(key), int):
+                summary[key] = 0
+        return
+    output = payload.get("review_output")
+    if isinstance(output, list):
+        payload["review_output"] = [
+            item for item in output if _valid_text_partial(item, reviewer)
+        ]
+    else:
+        payload["review_output"] = []
+    token_usage = payload.get("token_usage")
+    if not isinstance(token_usage, dict):
+        token_usage = {}
+        payload["token_usage"] = token_usage
+    for key in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
+        if isinstance(token_usage.get(key), bool) or not isinstance(token_usage.get(key), int):
+            token_usage[key] = 0
+
+
+def _copy_failed_result(
+    out_dir: Path,
+    run_dir: Path,
+    instance: ReviewInstance,
+    reviewer: str,
+    secret_values,
+    preview: bool = False,
+    error_message: Optional[str] = None,
+    returncode: int = -1,
+) -> Tuple[bool, int, Optional[str]]:
+    """Keep findings produced before a failed review, mirroring host behavior."""
+    filename = instance.safe_id + ".json"
+    source = out_dir / "failed-results" / filename
+    partial_source = out_dir / "failed-results" / (instance.safe_id + ".partial.json")
+    payload: Optional[dict] = None
+    findings = 0
+    read_error: Optional[str] = None
+
+    if source.exists() or source.is_symlink():
+        try:
+            payload = read_json(source)
+            validate_result(payload, instance.to_dict(), reviewer, preview, allow_partial=True)
+            _sanitize_partial_payload(payload, reviewer)
+            findings = _finding_count(payload, reviewer)
+        except (OSError, ValueError) as error:
+            payload = None
+            read_error = str(error)
+
+    if reviewer in ("claude", "codex") and (partial_source.exists() or partial_source.is_symlink()):
+        try:
+            partial_output = read_json_value(partial_source)
+            if not isinstance(partial_output, list):
+                raise ValueError("MCP partial must contain a JSON list")
+            exit_code = returncode if isinstance(returncode, int) and returncode != 0 else 1
+            if payload is not None:
+                existing = payload.get(f"{reviewer}_exit_code")
+                if isinstance(existing, int) and not isinstance(existing, bool) and existing != 0:
+                    exit_code = existing
+            candidate = {
+                "instance_id": instance.instance_id,
+                "repo": instance.repo,
+                "base_commit": instance.base_commit,
+                "head_commit": instance.head_commit,
+                "reviewer": {
+                    "claude": "claude-code/code-review",
+                    "codex": "codex",
+                }[reviewer],
+                f"{reviewer}_exit_code": exit_code,
+                "review_output": partial_output,
+            }
+            validate_result(candidate, instance.to_dict(), reviewer, preview, allow_partial=True)
+            _sanitize_partial_payload(candidate, reviewer)
+            candidate_findings = _finding_count(candidate, reviewer)
+            if payload is None or candidate_findings > findings:
+                payload = candidate
+                findings = candidate_findings
+        except (OSError, ValueError) as error:
+            read_error = read_error or str(error)
+
+    if payload is None:
+        return False, 0, read_error
+    if reviewer == "claude":
+        try:
+            _map_diagnostic_paths(payload, out_dir, instance)
+        except (OSError, ValueError):
+            # Diagnostic paths are optional; keep the partial findings.
+            pass
+    payload["review_status"] = "failed"
+    if error_message:
+        payload["review_error"] = error_message
+    try:
+        write_result(run_dir, filename, redact_payload(payload, secret_values), overwrite=True)
+    except (OSError, ValueError) as error:
+        return False, 0, str(error)
+    return True, findings, None
+
+
 def _run_one(
     config_value: DockerReviewConfig,
     instance: ReviewInstance,
@@ -569,7 +731,10 @@ def _run_one(
     container_id = cidfile.read_text(encoding="utf-8").strip() if cidfile.is_file() and not cidfile.is_symlink() else None
     manifest = None
     copied = 0
+    findings = 0
     status = "failed"
+    partial_result = False
+    partial_error = None
     try:
         manifest = read_json(out_dir / "run.json")
         validate_identity(manifest, instance.to_dict())
@@ -588,9 +753,29 @@ def _run_one(
         if manifest.get("instance_status") not in expected_status:
             raise DockerError("container manifest has no successful reviewer status")
         copied = _copy_results(out_dir, run_dir, instance, config_value.reviewer, config_value.preview, secret_values)
+        findings = manifest.get("findings")
+        if not isinstance(findings, int) or isinstance(findings, bool):
+            try:
+                findings = _finding_count(
+                    read_json(out_dir / "results" / (instance.safe_id + ".json")),
+                    config_value.reviewer,
+                )
+            except (OSError, ValueError):
+                findings = 0
         status = "ok"
     except (OSError, ValueError, DockerError) as error:
         error_message = redact(str(error))
+        partial_result, findings, partial_error = _copy_failed_result(
+            out_dir,
+            run_dir,
+            instance,
+            config_value.reviewer,
+            secret_values,
+            preview=config_value.preview,
+            error_message=error_message,
+            returncode=returncode,
+        )
+        copied = 1 if partial_result else 0
     manifest = redact_payload(manifest, secret_values)
     record = {"task": config_value.run_id, "attempt": attempt_token, "image_id": image_id,
               "container_id": container_id, "returncode": returncode, "cleanup": cleanup}
@@ -599,6 +784,7 @@ def _run_one(
         "instance_id": instance.instance_id, "status": status, "returncode": returncode,
         "timed_out": timed_out, "container_id": container_id, "cleanup": cleanup,
         "duration_seconds": _elapsed(started), "result_files": copied,
+        "findings": findings, "partial_result": partial_result, "partial_error": partial_error,
         "manifest": manifest, "error": None if status == "ok" else error_message,
         "attempt_dir": str(instance_root),
     }
@@ -636,12 +822,23 @@ def run_review_stage(
     instances: List[ReviewInstance],
     results_dir: Path,
     config_value: DockerReviewConfig,
+    base_summary: Optional[List[Dict[str, Any]]] = None,
+    preflight_metadata: Optional[Dict[str, Any]] = None,
 ) -> int:
-    """Complete the supplied review selection before returning to evaluation."""
+    """Complete the supplied review selection before returning to evaluation.
+
+    ``base_summary`` carries successful entries from an earlier run when
+    ``--retry`` is used; only the supplied instances are executed, while the
+    final summary and manifest describe the complete result set.
+    ``preflight_metadata`` lets a retry validate Docker before archiving failed
+    artifacts and reuse the same image identity for the review.
+    """
     _validate_options(config_value)
     if not instances:
         log("No instances to process.")
         return 0
+    retry_mode = base_summary is not None
+    retried_ids = {instance.instance_id for instance in instances}
     run_id = config.make_run_id(config_value.run_id)
     if run_id in (".", ".."):
         raise DockerError("run-id must identify a new run directory")
@@ -654,7 +851,7 @@ def run_review_stage(
     if len({instance.safe_id for instance in instances}) != len(instances):
         raise DockerError("instance IDs collide after filename normalization")
 
-    metadata = preflight(config_value)
+    metadata = preflight_metadata or preflight(config_value)
 
     run_dir.mkdir(parents=True, exist_ok=True)
     run_root = run_dir / "docker-logs"
@@ -670,6 +867,7 @@ def run_review_stage(
     executor = ThreadPoolExecutor(max_workers=config_value.concurrency)
     interrupted = False
     futures = {}
+    completed = 0
     try:
         for instance in instances:
             future = executor.submit(
@@ -684,15 +882,23 @@ def run_review_stage(
         for future in as_completed(futures):
             instance = futures[future]
             try:
-                results.append(future.result())
+                outcome = future.result()
             except Exception as error:  # noqa: BLE001 - one instance must not stop the run
-                results.append(
-                    {
-                        "instance_id": instance.instance_id,
-                        "status": "failed",
-                        "error": f"{type(error).__name__}: {error}",
-                    }
-                )
+                outcome = {
+                    "instance_id": instance.instance_id,
+                    "status": "failed",
+                    "error": f"{type(error).__name__}: {error}",
+                    "findings": 0,
+                }
+            results.append(outcome)
+            completed += 1
+            status = str(outcome.get("status", "failed"))
+            detail = f"findings={outcome.get('findings', 0)}"
+            if status != "ok":
+                detail += f" error={str(outcome.get('error') or outcome.get('partial_error') or 'review failed')[:160]}"
+            duration = outcome.get("duration_seconds")
+            duration_text = f"{duration}s" if duration is not None else "unknown"
+            log(f"[docker] [{completed}/{len(futures)}] {instance.instance_id} {status} {detail} duration={duration_text}")
 
     except KeyboardInterrupt:
         interrupted = True
@@ -715,17 +921,31 @@ def run_review_stage(
         if outcome["status"] == "ok":
             continue
         instance = by_id[outcome["instance_id"]]
+        partial_path = config.result_path(run_dir, instance.instance_id)
+        if outcome.get("partial_result") and partial_path.is_file() and not partial_path.is_symlink():
+            continue
         failure = instance.to_dict()
         failure.pop("reference_comments", None)
         failure.update({"reviewer": {"ocr":"ocr", "claude":"claude-code/code-review", "codex":"codex"}[config_value.reviewer],
                         f"{config_value.reviewer}_exit_code": outcome.get("returncode") or -1,
                         "status": "failed", "error": outcome.get("error", "review failed")})
+        if outcome.get("partial_error"):
+            failure["partial_result_error"] = outcome["partial_error"]
         if config_value.reviewer == "ocr":
             failure["review"] = {"comments": []}
         else:
             failure["review_output"] = []
         write_result(run_dir, instance.safe_id + ".json", failure, overwrite=True)
-    summary = sorted(results, key=lambda item: item["instance_id"])
+    previous = {
+        entry["instance_id"]: entry
+        for entry in (base_summary or [])
+        if isinstance(entry, dict)
+        and isinstance(entry.get("instance_id"), str)
+        and entry["instance_id"] not in retried_ids
+    }
+    combined = list(previous.values()) + results
+    combined.sort(key=lambda item: item["instance_id"])
+    summary = combined
     try:
         write_result(run_dir, f"summary_{config_value.reviewer}.json", summary, overwrite=True)
     except OSError as error:
@@ -745,13 +965,16 @@ def run_review_stage(
         "cpus_per_container": config_value.cpus,
         "memory_per_container": config_value.memory,
         "concurrency": config_value.concurrency,
-        "instances": len(instances),
-        "instance_ids": [instance.instance_id for instance in instances],
+        "instances": len(combined),
+        "instance_ids": [item["instance_id"] for item in combined],
+        "retry": retry_mode,
+        "retried_instances": sorted(retried_ids) if retry_mode else [],
+        "base_instances": len(combined) - len(results),
         "limit": config_value.limit,
         "interrupted": interrupted,
         "counts": {
-            status: sum(1 for item in results if item["status"] == status)
-            for status in sorted({item["status"] for item in results})
+            status: sum(1 for item in combined if item.get("status", "failed") == status)
+            for status in sorted({item.get("status", "failed") for item in combined})
         },
     }
     try:
@@ -760,7 +983,11 @@ def run_review_stage(
         raise DockerError("cannot write run manifest") from error
 
     succeeded = sum(1 for item in results if item["status"] == "ok")
-    log(f"Docker review done. {succeeded}/{len(results)} succeeded. Results -> {run_dir}")
+    total_succeeded = sum(1 for item in combined if item["status"] == "ok")
+    log(
+        f"Docker review done. current {succeeded}/{len(results)} succeeded; "
+        f"overall {total_succeeded}/{len(combined)}. Results -> {run_dir}"
+    )
     if interrupted:
         return 130
     return 0

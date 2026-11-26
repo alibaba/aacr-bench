@@ -10,8 +10,8 @@ from typing import Any
 MAX_RESULT_BYTES = 64 * 1024 * 1024
 
 
-def read_json(path: Path) -> dict:
-    """Read one regular, unshared file without following directory/file links."""
+def read_json_value(path: Path) -> Any:
+    """Read one bounded regular, unshared JSON value without following links."""
     path = Path(path)
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     directory = os.open(path.parent, flags | getattr(os, "O_DIRECTORY", 0))
@@ -25,9 +25,14 @@ def read_json(path: Path) -> dict:
             raise ValueError(f"result must be a regular, unshared file: {path.name}")
         if info.st_size > MAX_RESULT_BYTES:
             raise ValueError(f"result exceeds {MAX_RESULT_BYTES} bytes: {path.name}")
-        payload = json.load(handle)
+        return json.load(handle)
+
+
+def read_json(path: Path) -> dict:
+    """Read one JSON object with the result-file boundary checks."""
+    payload = read_json_value(path)
     if not isinstance(payload, dict):
-        raise ValueError(f"result must contain a JSON object: {path.name}")
+        raise ValueError(f"result must contain a JSON object: {Path(path).name}")
     return payload
 
 
@@ -37,14 +42,35 @@ def validate_identity(payload: dict, instance: dict) -> None:
             raise ValueError(f"result identity mismatch: {key}")
 
 
-def validate_result(payload: dict, instance: dict, reviewer: str, preview: bool = False) -> None:
+def validate_result(
+    payload: dict,
+    instance: dict,
+    reviewer: str,
+    preview: bool = False,
+    allow_partial: bool = False,
+) -> None:
     validate_identity(payload, instance)
     expected_reviewer = {"ocr": "ocr", "claude": "claude-code/code-review", "codex": "codex"}[reviewer]
     if payload.get("reviewer") != expected_reviewer:
         raise ValueError("result reviewer mismatch")
-    if payload.get(f"{reviewer}_exit_code") != 0:
+    exit_code = payload.get(f"{reviewer}_exit_code")
+    if not allow_partial and exit_code != 0:
         raise ValueError("reviewer did not exit successfully")
+    if allow_partial and (isinstance(exit_code, bool) or not isinstance(exit_code, int)):
+        raise ValueError("partial result must contain an integer reviewer exit code")
     if preview:
+        return
+    if allow_partial:
+        # A failed run can still contain usable findings. Keep the result
+        # shape permissive because OCR may emit raw text before producing JSON.
+        if reviewer == "ocr":
+            review = payload.get("review")
+            if review is not None and not isinstance(review, (dict, str)):
+                raise ValueError("partial OCR review must be an object or string")
+        else:
+            output = payload.get("review_output")
+            if output is not None and not isinstance(output, list):
+                raise ValueError("partial review output must be a list")
         return
     if reviewer == "ocr":
         review = payload.get("review")

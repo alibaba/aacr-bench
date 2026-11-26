@@ -51,7 +51,7 @@ This directory contains the data converter and code review evaluation program. T
 
 Before review, the program uses a local repository or cached archive when available; otherwise it downloads a Hugging Face repository snapshot, then clones the repository from GitHub if the snapshot is unavailable. The cache directory must not point to a repository used for development or a shared read-only directory.
 
-`--docker` changes only the review stage; evaluation always runs on the host. `--stage review` stops after review, `--stage eval` evaluates existing results on the host and cannot be combined with `--docker`, and the default `--stage all` waits for all selected review tasks to finish before evaluating the selected samples on the host, including samples whose reviews failed. Cancellation or a fatal runner error stops the pipeline.
+`--docker` changes only the review stage; evaluation always runs on the host. `--stage review` stops after review, `--stage eval` evaluates existing results on the host and cannot be combined with `--docker` unless `--retry` is set, and the default `--stage all` waits for all selected review tasks to finish before evaluating the selected samples on the host. Docker failed reviews keep structured partial findings, including MCP partial-only results. With `--retry`, failed samples are archived and rerun, and evaluation starts only when all selected samples succeed; remaining failures exit non-zero without evaluation. Cancellation or a fatal runner error stops the pipeline.
 
 Default scoring matches generated comments against references in the same file and computes Precision, Recall, and Balanced Score. A generated comment counts toward the precision numerator only if it matches at least one previously unmatched reference. See [metric definitions](../docs/metrics.md) and the [project README](../README.md) for dataset background.
 
@@ -131,7 +131,8 @@ If `CODEX_MODEL` is omitted, Codex uses its default model. Without `CODEX_HOME_B
 | `--reviewer` | Required | `ocr`, `claude`, or `codex` |
 | `--dataset` | Required | Converted JSONL file |
 | `--stage` | `all` | `all`: review and evaluation; `review`: review only; `eval`: evaluation only |
-| `--docker` | Off | Run review generation in Docker containers and save results on the host; metric evaluation still runs on the host; invalid with `--stage eval` |
+| `--docker` | Off | Run review generation in Docker containers and save results on the host; metric evaluation still runs on the host; invalid with `--stage eval` unless `--retry` is set |
+| `--retry` | Off | Retry failed samples from an existing `--run-id`; archive failed logs and keep successful results; evaluation runs only when all selected samples succeed |
 | `--run-id` | Generated for review | Run name; evaluation-only commands using default output directories need an existing run name |
 | `--limit` | All | First N JSONL samples; use a positive integer |
 | `--concurrency` | `1` | Concurrent repository groups on the host (serial within each repository), or PR containers with `--docker` |
@@ -275,7 +276,7 @@ Use `python -m pipeline run --help` and `python -m converters.aacr_bench --help`
 
 ### Docker Review
 
-Use `--docker` to generate review comments in containers while evaluation stays on the host. See the [Docker guide](docker/README.md) for image builds, versions, resources, and logs.
+Use `--docker` to generate review comments in containers while evaluation stays on the host. Docker failed reviews keep partial findings, including MCP partial-only results. Use `--retry` with an existing `--run-id` to archive and rerun only failed samples. See the [Docker guide](docker/README.md) for image builds, versions, resources, logs, and retry behavior.
 
 ## FAQ
 

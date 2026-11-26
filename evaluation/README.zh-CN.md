@@ -51,7 +51,7 @@ evaluation/
 
 评审前优先使用本地仓库或压缩包缓存；缓存不可用时，先下载 Hugging Face 仓库快照，快照不可用时再从 GitHub 克隆对应仓库。缓存目录由程序管理，不应指向开发中的仓库或共享只读目录。
 
-`--docker` 只改变评审阶段，评测始终在宿主机执行。`--stage review` 只评审；`--stage eval` 在宿主机评测已有结果，不能与 `--docker` 同用；默认 `--stage all` 等全部选中样本的评审任务结束后，在宿主统一评测，包括评审失败的样本。取消或致命运行错误会停止流水线。
+`--docker` 只改变评审阶段，评测始终在宿主机执行。`--stage review` 只评审；除 `--retry` 流程外，`--stage eval` 在宿主机评测已有结果，不能与 `--docker` 同用；默认 `--stage all` 等全部选中样本的评审任务结束后，在宿主统一评测。Docker 评审失败会保留结构化部分意见，包括仅存在于 MCP partial 的结果。使用 `--retry` 时，失败样本会先归档再重跑，且只有全部选中样本成功后才进入评测；仍有失败时命令返回非零并跳过评测。取消或致命运行错误会停止流水线。
 
 默认按文件匹配生成意见与参考意见，计算精确率（Precision）、召回率（Recall）和平衡分数（Balanced Score）。生成意见至少匹配一条此前尚未匹配的参考意见，才计入精确率分子。定义见[指标说明](../docs/zh/metrics.md)，数据背景见[项目 README](../README.zh-CN.md)。
 
@@ -131,7 +131,8 @@ evaluation/
 | `--reviewer` | 必填 | `ocr`、`claude` 或 `codex` |
 | `--dataset` | 必填 | 转换后的 JSONL 文件 |
 | `--stage` | `all` | `all` 连续评审和评测；`review` 仅评审；`eval` 仅评测 |
-| `--docker` | 关闭 | 评审意见生成阶段改在 Docker 容器中执行，结果保存在宿主机；指标评测仍在宿主机完成；不可与 `--stage eval` 同时使用 |
+| `--docker` | 关闭 | 评审意见生成阶段改在 Docker 容器中执行，结果保存在宿主机；指标评测仍在宿主机完成；除 `--retry` 流程外不可与 `--stage eval` 同时使用 |
+| `--retry` | 关闭 | 重试已有 `--run-id` 中的失败样本；归档失败日志并保留成功结果；仅当全部选中样本成功后才评测 |
 | `--run-id` | 评审时自动生成 | 运行名称；使用默认保存目录且只执行评测时，需要已有的运行名称 |
 | `--limit` | 全部 | 取 JSONL 前 N 条样本，使用正整数 |
 | `--concurrency` | `1` | 宿主模式为并发评审的仓库组数，同一仓库串行；`--docker` 模式为并发 PR 容器数 |
@@ -275,7 +276,7 @@ python -m pipeline run --stage eval --reviewer ocr \
 
 ### Docker 评审
 
-使用 `--docker` 在容器中生成评审意见，指标仍在宿主机计算。镜像构建、版本、资源限制与日志见 [Docker 指南](docker/README.zh-CN.md)。
+使用 `--docker` 在容器中生成评审意见，指标仍在宿主机计算。Docker 评审失败会保留部分意见，包括仅存在于 MCP partial 的结果；配合已有 `--run-id` 使用 `--retry`，可归档并只重跑失败样本。镜像构建、版本、资源限制、日志与重试行为见 [Docker 指南](docker/README.zh-CN.md)。
 
 ## FAQ（常见问题）
 

@@ -15,17 +15,20 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import threading
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import config
 import docker_runner
 import evaluate
+from docker_contract import write_result as write_json_result
 from repo_utils import (
     RepoError,
     RepoPreparer,
@@ -122,6 +125,236 @@ def _review_one_instance(
             on_done(instance.instance_id)
 
 
+class RetryError(RuntimeError):
+    """Raised when --retry cannot find or prepare an existing run."""
+
+
+def _read_review_summary(results_dir: Path, reviewer: str) -> Optional[List[Dict[str, Any]]]:
+    path = Path(results_dir) / f"summary_{reviewer}.json"
+    if not path.is_file() or path.is_symlink():
+        return None
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, list):
+        return None
+    return [
+        item for item in payload
+        if isinstance(item, dict) and isinstance(item.get("instance_id"), str)
+    ]
+
+
+def _archive_copy_or_move(source: Path, destination: Path) -> str:
+    """Move within the run tree, or copy without deleting on cross-device."""
+    if not source.exists() and not source.is_symlink():
+        return "skipped"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.replace(source, destination)
+        return "moved"
+    except OSError:
+        if source.is_symlink():
+            return "error: cannot archive symlink"
+        try:
+            if source.is_dir():
+                shutil.copytree(source, destination, symlinks=True)
+            else:
+                shutil.copy2(source, destination, follow_symlinks=False)
+            return "copied"
+        except OSError as error:
+            return f"error: {error}"
+
+
+def _rewrite_path_prefix(value: Any, old_prefix: str, new_prefix: str) -> Any:
+    if isinstance(value, str):
+        if value.startswith(old_prefix):
+            return new_prefix + value[len(old_prefix):]
+        return value
+    if isinstance(value, list):
+        return [_rewrite_path_prefix(item, old_prefix, new_prefix) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _rewrite_path_prefix(item, old_prefix, new_prefix)
+            for key, item in value.items()
+        }
+    return value
+
+
+def _prepare_retry(
+    instances: List[ReviewInstance],
+    results_dir: Path,
+    reviewer: str,
+) -> tuple[List[ReviewInstance], List[Dict[str, Any]], Optional[Path]]:
+    """Archive failed sample artifacts and select only failed instances."""
+    results_dir = Path(results_dir).expanduser().absolute()
+    if results_dir.is_symlink() or not results_dir.is_dir():
+        raise RetryError(f"--retry requires an existing run directory: {results_dir}")
+    summary = _read_review_summary(results_dir, reviewer)
+    if summary is None:
+        raise RetryError(
+            f"--retry requires an existing summary_{reviewer}.json in {results_dir}"
+        )
+    by_id = {entry["instance_id"]: entry for entry in summary}
+    base_summary: List[Dict[str, Any]] = []
+    base_ids = set()
+    retry_instances: List[ReviewInstance] = []
+    retry_ids = set()
+    for instance in instances:
+        entry = by_id.get(instance.instance_id)
+        result_path = config.result_path(results_dir, instance.instance_id)
+        succeeded = (
+            entry is not None
+            and entry.get("status") in ("ok", "preview")
+            and result_path.is_file()
+            and not result_path.is_symlink()
+        )
+        if succeeded:
+            base_summary.append(entry)
+            base_ids.add(entry["instance_id"])
+        else:
+            retry_instances.append(instance)
+            retry_ids.add(instance.instance_id)
+    # Keep every entry outside a limited selection so a retry does not shrink
+    # the run summary or lose archive metadata for unselected failed samples.
+    for entry in summary:
+        instance_id = entry["instance_id"]
+        if instance_id not in base_ids and instance_id not in retry_ids:
+            base_summary.append(entry)
+            base_ids.add(instance_id)
+    if not retry_instances:
+        return [], base_summary, None
+
+    archive_root = results_dir / "retry-archive"
+    if archive_root.is_symlink():
+        raise RetryError(f"retry archive path must be a real directory: {archive_root}")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    archive_dir = archive_root / stamp
+    suffix = 1
+    while True:
+        try:
+            archive_dir.mkdir(parents=True, exist_ok=False)
+            break
+        except FileExistsError:
+            suffix += 1
+            archive_dir = archive_root / f"{stamp}-{suffix}"
+        except OSError as error:
+            raise RetryError(f"cannot create retry archive: {error}") from error
+    try:
+        write_json_result(archive_dir, "summary_before_retry.json", summary)
+    except OSError as error:
+        raise RetryError(f"cannot archive the previous summary: {error}") from error
+
+    instances_root = results_dir / "docker-logs" / "instances"
+    archived: List[Dict[str, str]] = []
+    for instance in retry_instances:
+        entry = by_id.get(instance.instance_id, {})
+        result_path = config.result_path(results_dir, instance.instance_id)
+        archived_result_path = None
+        archived_attempt_path = None
+        if result_path.exists() or result_path.is_symlink():
+            archived_result_path = archive_dir / "results" / result_path.name
+            status = _archive_copy_or_move(result_path, archived_result_path)
+            archived.append({"kind": "result", "path": result_path.name, "status": status})
+            if status not in ("moved", "copied"):
+                raise RetryError(
+                    f"cannot archive failed result {result_path.name}: {status}"
+                )
+        partial_path = config.partial_path(results_dir, instance.instance_id)
+        if partial_path.exists() or partial_path.is_symlink():
+            status = _archive_copy_or_move(
+                partial_path,
+                archive_dir / "results" / partial_path.name,
+            )
+            archived.append({"kind": "partial", "path": partial_path.name, "status": status})
+            if status not in ("moved", "copied"):
+                raise RetryError(
+                    f"cannot archive failed partial {partial_path.name}: {status}"
+                )
+        attempt_value = entry.get("attempt_dir")
+        if isinstance(attempt_value, str) and attempt_value:
+            attempt_path = Path(attempt_value)
+            if attempt_path.is_absolute():
+                attempt_path = attempt_path.absolute()
+                if (
+                    attempt_path.parent == instances_root
+                    and attempt_path.is_dir()
+                    and not attempt_path.is_symlink()
+                ):
+                    archived_attempt_path = archive_dir / "docker-logs" / attempt_path.name
+                    status = _archive_copy_or_move(attempt_path, archived_attempt_path)
+                    archived.append(
+                        {"kind": "attempt", "path": attempt_path.name, "status": status}
+                    )
+                    if status not in ("moved", "copied"):
+                        raise RetryError(
+                            f"cannot archive failed attempt {attempt_path.name}: {status}"
+                        )
+        if archived_result_path and archived_attempt_path and reviewer == "claude" and not archived_result_path.is_symlink():
+            try:
+                payload = json.loads(archived_result_path.read_text(encoding="utf-8"))
+                payload = _rewrite_path_prefix(
+                    payload, str(attempt_path), str(archived_attempt_path)
+                )
+                write_json_result(
+                    archived_result_path.parent,
+                    archived_result_path.name,
+                    payload,
+                    overwrite=True,
+                )
+                archived.append(
+                    {"kind": "diagnostics", "path": archived_result_path.name, "status": "rewritten"}
+                )
+            except (OSError, json.JSONDecodeError) as error:
+                archived.append(
+                    {"kind": "diagnostics", "path": archived_result_path.name, "status": f"error: {error}"}
+                )
+    try:
+        write_json_result(
+            archive_dir,
+            "retry.json",
+            {
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "results_dir": str(results_dir),
+                "reviewer": reviewer,
+                "retry_instances": sorted(retry_ids),
+                "base_instances": [entry["instance_id"] for entry in base_summary],
+                "archived": archived,
+            },
+        )
+    except OSError as error:
+        raise RetryError(f"cannot write retry manifest: {error}") from error
+    log(f"Retry: archived {len(retry_instances)} failed sample(s) -> {archive_dir}")
+    return retry_instances, base_summary, archive_dir
+
+
+def _remaining_failures(
+    results_dir: Path,
+    reviewer: str,
+    instance_ids: Optional[set[str]] = None,
+) -> Optional[List[Dict[str, Any]]]:
+    summary = _read_review_summary(results_dir, reviewer)
+    if summary is None:
+        return None
+    by_id = {entry["instance_id"]: entry for entry in summary}
+    failures: List[Dict[str, Any]] = []
+    for entry in summary:
+        instance_id = entry["instance_id"]
+        if instance_ids is not None and instance_id not in instance_ids:
+            continue
+        result_path = config.result_path(results_dir, instance_id)
+        if entry.get("status") not in ("ok", "preview") or not result_path.is_file() or result_path.is_symlink():
+            failures.append(entry)
+    if instance_ids is not None:
+        failures.extend(
+            {"instance_id": instance_id, "status": "missing"}
+            for instance_id in sorted(instance_ids)
+            if instance_id not in by_id
+        )
+    return failures
+
+
 def run_review_stage(
     instances: List[ReviewInstance],
     reviewer: str,
@@ -132,6 +365,7 @@ def run_review_stage(
     concurrency: int = 1,
     ocr_command: str = "ocr",
     max_tools: int = 30,
+    base_summary: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     """执行评审阶段：逐样本评审并落盘结果文件，返回每条状态摘要。
 
@@ -233,11 +467,31 @@ def run_review_stage(
             codex_reviewer.cleanup_codex_home(codex_home)
 
     summary_path = results_dir / f"summary_{reviewer}.json"
+    new_summary = sorted(summary, key=lambda item: item["instance_id"])
+    if base_summary is not None:
+        retried_ids = {item["instance_id"] for item in new_summary}
+        previous = {
+            entry["instance_id"]: entry
+            for entry in base_summary
+            if isinstance(entry, dict)
+            and isinstance(entry.get("instance_id"), str)
+            and entry["instance_id"] not in retried_ids
+        }
+        summary = sorted(
+            list(previous.values()) + new_summary,
+            key=lambda item: item["instance_id"],
+        )
+    else:
+        summary = new_summary
     with summary_path.open("w", encoding="utf-8") as handle:
         json.dump(summary, handle, ensure_ascii=False, indent=2)
 
+    current_succeeded = sum(1 for item in new_summary if item.get("status") in ("ok", "preview"))
     succeeded = sum(1 for item in summary if item.get("status") in ("ok", "preview"))
-    log(f"Review done. {succeeded}/{len(summary)} succeeded. Summary -> {summary_path}")
+    log(
+        f"Review done. current {current_succeeded}/{len(new_summary)} succeeded; "
+        f"overall {succeeded}/{len(summary)}. Summary -> {summary_path}"
+    )
     return summary
 
 
@@ -341,34 +595,91 @@ def _print_average_summary(
 def run_pipeline(args) -> int:
     """Run the selected review backend, then evaluate on the host."""
     use_docker = bool(getattr(args, "docker", False))
+    retry = bool(getattr(args, "retry", False))
     instances = load_instances(args.dataset, args.limit)
     log(f"Loaded {len(instances)} instance(s) from {args.dataset}")
     if not instances:
         log("No instances to process.")
         return 0
 
-    if args.stage in ("all", "review"):
+    if args.stage in ("all", "review") or retry:
+        review_instances = instances
+        base_summary = None
+        docker_config = None
+        docker_metadata = None
         if use_docker:
             args.run_id = config.make_run_id(args.run_id)
             docker_config = docker_runner.DockerReviewConfig.from_args(args)
-            review_code = docker_runner.run_review_stage(instances, args.results_dir, docker_config)
-            if review_code != 0:
-                log("Docker review did not complete; automatic evaluation skipped.")
-                return review_code
-        else:
-            os.environ.setdefault("GIT_LFS_SKIP_SMUDGE", "1")
-            archive_dir = config.default_snapshot_archive_dir(args.repo_dir)
-            preparer = RepoPreparer(repo_dir=args.repo_dir, archive_dir=archive_dir, dataset_path=args.dataset)
-            set_active_repo_preparer(preparer)
-            try:
-                run_review_stage(
-                    instances=instances, reviewer=args.reviewer, repo_dir=args.repo_dir,
-                    results_dir=args.results_dir, timeout_minutes=args.timeout_minutes,
-                    preview=args.preview, concurrency=args.concurrency,
-                    ocr_command=args.ocr_command, max_tools=args.max_tools,
+            if retry:
+                docker_metadata = docker_runner.preflight(docker_config)
+        elif retry:
+            # Check the host reviewer before archiving failed artifacts.
+            if args.reviewer == "ocr":
+                ocr_reviewer.ensure_ocr_installed(args.ocr_command)
+                ocr_reviewer.check_env(args.preview)
+            elif args.reviewer == "claude":
+                claude_reviewer.ensure_claude_installed()
+            else:
+                codex_reviewer.ensure_codex_installed()
+        if retry:
+            review_instances, base_summary, _archive_dir = _prepare_retry(
+                instances, args.results_dir, args.reviewer
+            )
+            if not review_instances:
+                log("Retry: no failed samples; nothing to rerun.")
+
+        if review_instances:
+            if use_docker:
+                docker_kwargs = (
+                    {"base_summary": base_summary} if base_summary is not None else {}
                 )
-            finally:
-                clear_active_repo_preparer()
+                if docker_metadata is not None:
+                    docker_kwargs["preflight_metadata"] = docker_metadata
+                review_code = docker_runner.run_review_stage(
+                    review_instances,
+                    args.results_dir,
+                    docker_config,
+                    **docker_kwargs,
+                )
+                if review_code != 0:
+                    log("Docker review did not complete; automatic evaluation skipped.")
+                    return review_code
+            else:
+                os.environ.setdefault("GIT_LFS_SKIP_SMUDGE", "1")
+                archive_dir = config.default_snapshot_archive_dir(args.repo_dir)
+                preparer = RepoPreparer(repo_dir=args.repo_dir, archive_dir=archive_dir, dataset_path=args.dataset)
+                set_active_repo_preparer(preparer)
+                try:
+                    run_review_stage(
+                        instances=review_instances, reviewer=args.reviewer, repo_dir=args.repo_dir,
+                        results_dir=args.results_dir, timeout_minutes=args.timeout_minutes,
+                        preview=args.preview, concurrency=args.concurrency,
+                        ocr_command=args.ocr_command, max_tools=args.max_tools,
+                        base_summary=base_summary,
+                    )
+                finally:
+                    clear_active_repo_preparer()
+
+        if retry:
+            failures = _remaining_failures(
+                args.results_dir,
+                args.reviewer,
+                {instance.instance_id for instance in instances},
+            )
+            if failures is None:
+                log(f"ERROR: cannot read summary_{args.reviewer}.json after retry.")
+                return 1
+            if failures:
+                log(
+                    f"ERROR: {len(failures)} sample(s) still failed after retry; "
+                    "evaluation skipped. Run the same command with --retry again after fixing the failures."
+                )
+                for entry in failures[:10]:
+                    log(f"  failed: {entry.get('instance_id')} ({entry.get('status')})")
+                return 1
+            log("Retry complete: all selected samples succeeded.")
+            if args.stage == "review":
+                return 0
 
     preview = args.preview
     if args.stage in ("all", "eval") and not (use_docker and preview):
@@ -496,7 +807,12 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--docker",
         action="store_true",
-        help="Run review in Docker; evaluation stays on the host; not valid with --stage eval",
+        help="Run review in Docker; evaluation stays on the host; not valid with --stage eval unless --retry is set",
+    )
+    run_parser.add_argument(
+        "--retry",
+        action="store_true",
+        help="Retry failed samples from an existing --run-id; archive failed logs and keep successful results",
     )
     _add_docker_options(run_parser)
     return parser
@@ -522,7 +838,7 @@ def apply_defaults(args: argparse.Namespace) -> None:
 
     if args.results_dir is None:
         run_id, run_path = _resolve_run_dir(args, benchmark_name)
-        if getattr(args, "docker", False):
+        if getattr(args, "docker", False) or getattr(args, "retry", False):
             args.run_id = run_id
         args.results_dir = run_path
         args.metrics_dir = config.metrics_run_dir(benchmark_name, args.reviewer, run_id)
@@ -565,7 +881,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "run":
-        if getattr(args, "docker", False) and args.stage == "eval":
+        if getattr(args, "retry", False) and not args.run_id:
+            parser.error("--retry requires --run-id so the existing run can be located")
+        if getattr(args, "retry", False) and args.preview:
+            parser.error("--retry cannot be combined with --preview")
+        if getattr(args, "docker", False) and args.stage == "eval" and not getattr(args, "retry", False):
             parser.error(
                 "--docker only applies to review; use --stage review or --stage all "
                 "and run evaluation on the host"
@@ -573,8 +893,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         try:
             apply_defaults(args)
             return run_pipeline(args)
-        except docker_runner.DockerError as error:
-            print(f"docker review error: {error}", file=sys.stderr)
+        except (docker_runner.DockerError, RetryError) as error:
+            print(f"review error: {error}", file=sys.stderr)
             return 1
 
     parser.print_help()
